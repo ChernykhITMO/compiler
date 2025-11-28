@@ -40,7 +40,6 @@ func (p *Parser) parseStatement() frontend.Stmt {
 		}
 	}
 
-	// expression statement
 	expr := p.parseExpression()
 	p.match(frontend.TokenNewline)
 	return &frontend.ExprStmt{Expr: expr}

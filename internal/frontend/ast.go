@@ -24,8 +24,6 @@ type Param struct {
 	Name     string
 }
 
-// ===== Expressions =====
-
 type BinaryExpr struct {
 	Left  Expr
 	Op    string
@@ -75,8 +73,6 @@ type CallExpr struct {
 }
 
 func (*CallExpr) exprNode() {}
-
-// ===== Statements =====
 
 type BlockStmt struct {
 	Statements []Stmt

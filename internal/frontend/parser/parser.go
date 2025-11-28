@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ChernykhITMO/compiler/internal/frontend"
 )
@@ -46,7 +47,7 @@ func (p *Parser) advance() frontend.Token {
 
 func (p *Parser) match(tt frontend.TokenType) bool {
 	if p.check(tt) {
-		p.advance()
+		_ = p.advance()
 		return true
 	}
 	return false
@@ -128,7 +129,7 @@ func (p *Parser) parseFunction() *frontend.FunctionDecl {
 		p.check(frontend.TokenChar) || p.check(frontend.TokenVoid) {
 		fn.ReturnType = p.parseTypeName()
 	} else {
-		fn.ReturnType = "void"
+		fn.ReturnType = "void" // Надо подумать, убрать ли в конце функции тип
 	}
 
 	fn.Body = p.parseBlock()
@@ -157,4 +158,131 @@ func (p *Parser) parseBlock() *frontend.BlockStmt {
 	p.match(frontend.TokenNewline) // опциональный \n после блока
 
 	return block
+}
+
+func PrintProgram(prog *frontend.Program) {
+	for _, fn := range prog.Functions {
+		printFunction(fn, 0)
+		fmt.Println()
+	}
+}
+
+func printFunction(fn *frontend.FunctionDecl, indent int) {
+	ind := strings.Repeat("  ", indent)
+	fmt.Printf("%sFunction %s(", ind, fn.Name)
+	for i, p := range fn.Params {
+		if i > 0 {
+			fmt.Print(", ")
+		}
+		fmt.Printf("%s %s", p.TypeName, p.Name)
+	}
+	fmt.Printf(") %s\n", fn.ReturnType)
+	printBlock(fn.Body, indent+1)
+}
+
+func printBlock(block *frontend.BlockStmt, indent int) {
+	if block == nil {
+		return
+	}
+	ind := strings.Repeat("  ", indent)
+	fmt.Printf("%sBlock:\n", ind)
+	for _, stmt := range block.Statements {
+		printStmt(stmt, indent+1)
+	}
+}
+
+func printStmt(s frontend.Stmt, indent int) {
+	ind := strings.Repeat("  ", indent)
+
+	switch st := s.(type) {
+	case *frontend.VarDeclStmt:
+		fmt.Printf("%sVarDecl %s %s\n", ind, st.TypeName, st.Name)
+		if st.Init != nil {
+			fmt.Printf("%s  Init:\n", ind)
+			printExpr(st.Init, indent+2)
+		}
+
+	case *frontend.AssignStmt:
+		fmt.Printf("%sAssign:\n", ind)
+		fmt.Printf("%s  Target:\n", ind)
+		printExpr(st.Target, indent+2)
+		fmt.Printf("%s  Value:\n", ind)
+		printExpr(st.Value, indent+2)
+
+	case *frontend.ExprStmt:
+		fmt.Printf("%sExprStmt:\n", ind)
+		printExpr(st.Expr, indent+1)
+
+	case *frontend.ReturnStmt:
+		fmt.Printf("%sReturn\n", ind)
+		if st.Value != nil {
+			fmt.Printf("%s  Value:\n", ind)
+			printExpr(st.Value, indent+2)
+		}
+
+	case *frontend.IfStmt:
+		fmt.Printf("%sIf:\n", ind)
+		fmt.Printf("%s  Condition:\n", ind)
+		printExpr(st.Condition, indent+2)
+		fmt.Printf("%s  Then:\n", ind)
+		printBlock(st.ThenBlock, indent+2)
+		if st.ElseBlock != nil {
+			fmt.Printf("%s  Else:\n", ind)
+			printBlock(st.ElseBlock, indent+2)
+		}
+
+	case *frontend.WhileStmt:
+		fmt.Printf("%sWhile:\n", ind)
+		fmt.Printf("%s  Condition:\n", ind)
+		printExpr(st.Condition, indent+2)
+		fmt.Printf("%s  Body:\n", ind)
+		printBlock(st.Body, indent+2)
+
+	default:
+		fmt.Printf("%s<unknown stmt %T>\n", ind, st)
+	}
+}
+
+func printExpr(e frontend.Expr, indent int) {
+	ind := strings.Repeat("  ", indent)
+
+	switch ex := e.(type) {
+	case *frontend.NumberExpr:
+		fmt.Printf("%sNumber(%v)\n", ind, ex.Value)
+
+	case *frontend.StringExpr:
+		fmt.Printf("%sString(%q)\n", ind, ex.Value)
+
+	case *frontend.BoolExpr:
+		fmt.Printf("%sBool(%v)\n", ind, ex.Value)
+
+	case *frontend.NullExpr:
+		fmt.Printf("%sNull\n", ind)
+
+	case *frontend.IdentExpr:
+		fmt.Printf("%sIdent(%s)\n", ind, ex.Name)
+
+	case *frontend.UnaryExpr:
+		fmt.Printf("%sUnary(%s):\n", ind, ex.Op)
+		printExpr(ex.Expr, indent+1)
+
+	case *frontend.BinaryExpr:
+		fmt.Printf("%sBinary(%s):\n", ind, ex.Op)
+		fmt.Printf("%s  Left:\n", ind)
+		printExpr(ex.Left, indent+2)
+		fmt.Printf("%s  Right:\n", ind)
+		printExpr(ex.Right, indent+2)
+
+	case *frontend.CallExpr:
+		fmt.Printf("%sCall:\n", ind)
+		fmt.Printf("%s  Callee:\n", ind)
+		printExpr(ex.Callee, indent+2)
+		fmt.Printf("%s  Args:\n", ind)
+		for _, a := range ex.Args {
+			printExpr(a, indent+2)
+		}
+
+	default:
+		fmt.Printf("%s<unknown expr %T>\n", ind, ex)
+	}
 }
