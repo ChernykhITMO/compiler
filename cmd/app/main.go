@@ -10,9 +10,20 @@ import (
 func main() {
 	src := `
 function main() void {
-    int x = 2 * 3
-    if (x > 5) {
-        x = 7
+    for (int i = 0; i < 10; i = i + 1) {
+        if (i == 5) {
+            break
+        }
+        print(i)
+    }
+    
+    int x = 0
+    while (x < 5) {
+        x = x + 1
+        if (x == 3) {
+            continue
+        }
+        print(x)
     }
 }
 `
@@ -21,8 +32,24 @@ function main() void {
 
 	p := parser.NewParser(tokens)
 	prog := p.ParseProgram()
+
+	fmt.Println("AST:")
 	parser.PrintProgram(prog)
-	fmt.Println("Total statements:", CountStatements(prog))
+
+	fmt.Println("\nValidation:")
+	validator := frontend.NewASTValidator()
+	errors := validator.Validate(prog)
+
+	if len(errors) == 0 {
+		fmt.Println("No validation errors found")
+	} else {
+		fmt.Println("Validation errors:")
+		for _, err := range errors {
+			fmt.Printf("  [%s] %s\n", err.Type, err.Message)
+		}
+	}
+
+	fmt.Println("\nTotal statements:", CountStatements(prog))
 }
 
 func CountStatements(prog *frontend.Program) int {

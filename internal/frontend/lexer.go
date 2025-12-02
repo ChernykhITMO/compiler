@@ -142,6 +142,10 @@ func (l *Lexer) readIdentifier() Token {
 		return Token{Type: TokenTrue, Text: ident, Pos: start}
 	case "false":
 		return Token{Type: TokenFalse, Text: ident, Pos: start}
+	case "break":
+		return Token{Type: TokenBreak, Text: ident, Pos: start}
+	case "continue":
+		return Token{Type: TokenContinue, Text: ident, Pos: start}
 	default:
 		return Token{Type: TokenIdentifier, Text: ident, Pos: start}
 	}
@@ -152,6 +156,7 @@ func (l *Lexer) Tokenize() []Token {
 
 	for {
 		l.skipWhitespace()
+
 		c := l.currentChar()
 		if c == 0 {
 			break
@@ -181,6 +186,9 @@ func (l *Lexer) Tokenize() []Token {
 			} else {
 				tokens = append(tokens, Token{Type: TokenAssign, Text: "=", Pos: l.position - 1})
 			}
+		case ';':
+			l.skipChar()
+			tokens = append(tokens, Token{Type: TokenSemicolon, Text: ";", Pos: l.position - 1})
 		case '!':
 			l.skipChar()
 			if l.currentChar() == '=' {

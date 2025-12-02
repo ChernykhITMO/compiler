@@ -54,6 +54,9 @@ const (
 	TokenNewline
 
 	TokenEnd
+	TokenSemicolon
+	TokenBreak
+	TokenContinue
 )
 
 type Token struct {

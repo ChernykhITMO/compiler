@@ -61,8 +61,6 @@ func (p *Parser) consume(tt frontend.TokenType, msg string) frontend.Token {
 	panic(fmt.Errorf("parse error at pos %d: %s", cur.Pos, msg))
 }
 
-// ===== типы =====
-
 func (p *Parser) parseTypeName() string {
 	switch {
 	case p.match(frontend.TokenInt):
@@ -82,8 +80,6 @@ func (p *Parser) parseTypeName() string {
 		panic(fmt.Errorf("parse error at pos %d: expected type name", cur.Pos))
 	}
 }
-
-// ===== программа / функции =====
 
 func (p *Parser) ParseProgram() *frontend.Program {
 	prog := &frontend.Program{}
@@ -130,6 +126,8 @@ func (p *Parser) parseFunction() *frontend.FunctionDecl {
 		fn.ReturnType = p.parseTypeName()
 	} else {
 		fn.ReturnType = "void" // Надо подумать, убрать ли в конце функции тип
+		// (UPD: НЕ УБИРАЙ!! В ВАЛИДАТОРЕ ИДЕТ ПРОВЕРКА)
+		// Каждая фукнкция если не задана на тип будет войдовской
 	}
 
 	fn.Body = p.parseBlock()
@@ -155,7 +153,7 @@ func (p *Parser) parseBlock() *frontend.BlockStmt {
 	}
 
 	p.consume(frontend.TokenRightBrace, "expected '}' to end block")
-	p.match(frontend.TokenNewline) // опциональный \n после блока
+	p.match(frontend.TokenNewline)
 
 	return block
 }
@@ -201,6 +199,22 @@ func printStmt(s frontend.Stmt, indent int) {
 			fmt.Printf("%s  Init:\n", ind)
 			printExpr(st.Init, indent+2)
 		}
+	case *frontend.ForStmt:
+		fmt.Printf("%sFor:\n", ind)
+		if st.Init != nil {
+			fmt.Printf("%s  Init:\n", ind)
+			printStmt(st.Init, indent+2)
+		}
+		if st.Condition != nil {
+			fmt.Printf("%s  Condition:\n", ind)
+			printExpr(st.Condition, indent+2)
+		}
+		if st.Increment != nil {
+			fmt.Printf("%s  Increment:\n", ind)
+			printStmt(st.Increment, indent+2)
+		}
+		fmt.Printf("%s  Body:\n", ind)
+		printBlock(st.Body, indent+2)
 
 	case *frontend.AssignStmt:
 		fmt.Printf("%sAssign:\n", ind)
@@ -237,6 +251,11 @@ func printStmt(s frontend.Stmt, indent int) {
 		printExpr(st.Condition, indent+2)
 		fmt.Printf("%s  Body:\n", ind)
 		printBlock(st.Body, indent+2)
+	case *frontend.BreakStmt:
+		fmt.Printf("%sBreak\n", ind)
+
+	case *frontend.ContinueStmt:
+		fmt.Printf("%sContinue\n", ind)
 
 	default:
 		fmt.Printf("%s<unknown stmt %T>\n", ind, st)
@@ -284,5 +303,69 @@ func printExpr(e frontend.Expr, indent int) {
 
 	default:
 		fmt.Printf("%s<unknown expr %T>\n", ind, ex)
+	}
+}
+
+func printInlineStmt(s frontend.Stmt) {
+	switch st := s.(type) {
+	case *frontend.VarDeclStmt:
+		fmt.Printf("%s %s", st.Name, st.TypeName)
+		if st.Init != nil {
+			fmt.Print(" = ")
+			printInlineExpr(st.Init)
+		}
+
+	case *frontend.AssignStmt:
+		printInlineExpr(st.Target)
+		fmt.Print(" = ")
+		printInlineExpr(st.Value)
+
+	case *frontend.ExprStmt:
+		printInlineExpr(st.Expr)
+
+	default:
+		fmt.Printf("<stmt %T>", st)
+	}
+}
+
+func printInlineExpr(e frontend.Expr) {
+	switch ex := e.(type) {
+	case *frontend.NumberExpr:
+		fmt.Printf("%v", ex.Value)
+
+	case *frontend.StringExpr:
+		fmt.Printf("%q", ex.Value)
+
+	case *frontend.BoolExpr:
+		fmt.Printf("%v", ex.Value)
+
+	case *frontend.NullExpr:
+		fmt.Print("null")
+
+	case *frontend.IdentExpr:
+		fmt.Printf("%s", ex.Name)
+
+	case *frontend.UnaryExpr:
+		fmt.Printf("%s", ex.Op)
+		printInlineExpr(ex.Expr)
+
+	case *frontend.BinaryExpr:
+		printInlineExpr(ex.Left)
+		fmt.Printf(" %s ", ex.Op)
+		printInlineExpr(ex.Right)
+
+	case *frontend.CallExpr:
+		printInlineExpr(ex.Callee)
+		fmt.Print("(")
+		for i, arg := range ex.Args {
+			if i > 0 {
+				fmt.Print(", ")
+			}
+			printInlineExpr(arg)
+		}
+		fmt.Print(")")
+
+	default:
+		fmt.Printf("<expr %T>", ex)
 	}
 }
