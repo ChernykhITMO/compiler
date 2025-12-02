@@ -1,6 +1,8 @@
 ﻿package parser
 
-import "github.com/ChernykhITMO/compiler/internal/frontend"
+import (
+	"github.com/ChernykhITMO/compiler/internal/frontend"
+)
 
 func (p *Parser) parseStatement() frontend.Stmt {
 	if p.match(frontend.TokenIf) {
@@ -15,15 +17,21 @@ func (p *Parser) parseStatement() frontend.Stmt {
 	if p.match(frontend.TokenReturn) {
 		return p.parseReturnStmt()
 	}
+	if p.match(frontend.TokenBreak) {
+		p.match(frontend.TokenNewline)
+		return &frontend.BreakStmt{}
+	}
+	if p.match(frontend.TokenContinue) { // ← ДОБАВИТЬ
+		p.match(frontend.TokenNewline)
+		return &frontend.ContinueStmt{}
+	}
 
-	// объявление переменной
 	if p.check(frontend.TokenInt) || p.check(frontend.TokenFloat) ||
 		p.check(frontend.TokenString) || p.check(frontend.TokenBool) ||
 		p.check(frontend.TokenChar) {
 		return p.parseVarDeclOrExprStmt()
 	}
 
-	// присваивание: Identifier '=' expr
 	if p.check(frontend.TokenIdentifier) {
 		nextType := frontend.TokenEnd
 		if p.pos+1 < len(p.tokens) {
@@ -108,5 +116,35 @@ func (p *Parser) parseWhileStmt() frontend.Stmt {
 }
 
 func (p *Parser) parseForStmt() frontend.Stmt {
-	panic("for-statement parsing not implemented yet")
+	hasParen := p.match(frontend.TokenLeftParen)
+
+	var init frontend.Stmt
+	if !p.check(frontend.TokenSemicolon) {
+		init = p.parseStatement()
+	}
+	p.consume(frontend.TokenSemicolon, "expected ';' after for init")
+
+	var cond frontend.Expr
+	if !p.check(frontend.TokenSemicolon) {
+		cond = p.parseExpression()
+	}
+	p.consume(frontend.TokenSemicolon, "expected ';' after for condition")
+
+	var incr frontend.Stmt
+	if !p.check(frontend.TokenRightParen) {
+		incr = p.parseStatement()
+	}
+
+	if hasParen {
+		p.consume(frontend.TokenRightParen, "expected ')' after for clauses")
+	}
+
+	body := p.parseBlock()
+
+	return &frontend.ForStmt{
+		Init:      init,
+		Condition: cond,
+		Increment: incr,
+		Body:      body,
+	}
 }

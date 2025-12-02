@@ -121,3 +121,18 @@ type WhileStmt struct {
 }
 
 func (*WhileStmt) stmtNode() {}
+
+type ForStmt struct {
+	Init      Stmt
+	Condition Expr
+	Increment Stmt
+	Body      *BlockStmt
+}
+
+func (*ForStmt) stmtNode() {}
+
+type BreakStmt struct{}
+type ContinueStmt struct{}
+
+func (*BreakStmt) stmtNode()    {}
+func (*ContinueStmt) stmtNode() {}
