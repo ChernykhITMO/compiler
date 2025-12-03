@@ -62,7 +62,6 @@ func (c *Checker) checkBlock(block *frontend.BlockStmt) {
 func (c *Checker) checkStatement(stmt frontend.Stmt) {
 	switch s := stmt.(type) {
 	case *frontend.VarDeclStmt:
-		// Объявление переменной
 		if _, ok := c.variables[s.Name]; ok {
 			c.addError("DuplicateVariable",
 				fmt.Sprintf("Variable '%s' already declared", s.Name))
@@ -107,11 +106,9 @@ func (c *Checker) checkStatement(stmt frontend.Stmt) {
 	}
 }
 
-// Проверяем выражение
 func (c *Checker) checkExpression(expr frontend.Expr) {
 	switch e := expr.(type) {
 	case *frontend.IdentExpr:
-		// Проверяем, что переменная объявлена
 		_, ok1 := c.variables[e.Name]
 		_, ok2 := c.functions[e.Name]
 		if !ok1 && !ok2 {

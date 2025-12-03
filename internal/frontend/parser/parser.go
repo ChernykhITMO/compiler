@@ -136,8 +136,6 @@ func (p *Parser) parseFunction() *frontend.FunctionDecl {
 	return fn
 }
 
-// ===== блок =====
-
 func (p *Parser) parseBlock() *frontend.BlockStmt {
 	p.consume(frontend.TokenLeftBrace, "expected '{' to start block")
 	block := &frontend.BlockStmt{}
