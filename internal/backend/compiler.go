@@ -153,6 +153,8 @@ func (c *Compiler) compileStmt(s frontend.Stmt) {
 		c.compileIf(st)
 	case *frontend.WhileStmt:
 		c.compileWhile(st)
+	case *frontend.ForStmt:
+		c.compileFor(st)
 	default:
 		panic(fmt.Sprintf("unknown stmt %T", st))
 	}
@@ -461,4 +463,42 @@ func (c *Compiler) compileCall(e *frontend.CallExpr) {
 		S:    name,
 	})
 	ch.WriteUint16(uint16(idx), 0)
+}
+
+func (c *Compiler) compileFor(s *frontend.ForStmt) {
+	ch := c.chunk()
+
+	if s.Init != nil {
+		c.compileStmt(s.Init)
+	}
+
+	loopStart := len(ch.Code)
+
+	var exitJumpPos int
+	hasCond := s.Condition != nil
+
+	if hasCond {
+		c.compileExpr(s.Condition)
+
+		ch.Write(bytecode.OpJumpIfFalse, 0)
+		exitJumpPos = len(ch.Code)
+		ch.WriteUint16(0, 0)
+
+		ch.Write(bytecode.OpPop, 0)
+	}
+
+	c.compileBlock(s.Body)
+
+	if s.Increment != nil {
+		c.compileStmt(s.Increment)
+	}
+
+	ch.Write(bytecode.OpJump, 0)
+	ch.WriteUint16(uint16(loopStart), 0)
+
+	if hasCond {
+		afterLoop := len(ch.Code)
+		ch.PatchUint16(exitJumpPos, uint16(afterLoop))
+		ch.Write(bytecode.OpPop, 0)
+	}
 }
