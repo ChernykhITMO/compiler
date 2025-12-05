@@ -3,6 +3,7 @@
 import (
 	"fmt"
 	"github.com/ChernykhITMO/compiler/internal/bytecode"
+	"math"
 )
 
 type VM struct {
@@ -240,22 +241,13 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 	}
 }
 
+// TODO подумать над тем что делаем только bool или что то еще
 func (vm *VM) isTruthy(v bytecode.Value) bool {
 	switch v.Kind {
-	case bytecode.ValNull:
-		return false
 	case bytecode.ValBool:
 		return v.B
-	case bytecode.ValInt:
-		return v.I != 0
-	case bytecode.ValFloat:
-		return v.F != 0
-	case bytecode.ValString:
-		return v.S != ""
-	case bytecode.ValChar:
-		return v.C != 0
 	default:
-		return false
+		panic("non-bool used in boolean context")
 	}
 }
 
@@ -320,9 +312,7 @@ func (vm *VM) binaryNumberOp(op string, a, b bytecode.Value) (bytecode.Value, er
 	case "%":
 		res.F = float64(int64(af) % int64(bf))
 	case "^":
-		//TODO доделать
-
-		res.F = af
+		res.F = math.Pow(af, bf)
 	default:
 		return bytecode.Value{}, fmt.Errorf("unknown numeric op %q", op)
 	}

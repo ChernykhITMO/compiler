@@ -3,7 +3,7 @@
 type TypeKind byte
 
 const (
-	TypeInvalid TypeKind = iota
+	TypeInvalid TypeKind = iota //инвалидный тип
 	TypeInt
 	TypeFloat
 	TypeBool
@@ -36,30 +36,30 @@ type Value struct {
 type OpCode byte
 
 const (
-	OpConst OpCode = iota
-	OpLoadLocal
-	OpStoreLocal
-	OpAdd
-	OpSub
-	OpMul
-	OpDiv
-	OpMod
-	OpPow
+	OpConst      OpCode = iota // положить константу на стек
+	OpLoadLocal                //загрузить локальную переменную на стек
+	OpStoreLocal               //сохранить в локальную переменную вершину стека
+	OpAdd                      // сложение
+	OpSub                      // вычитание
+	OpMul                      // умножение
+	OpDiv                      // деление
+	OpMod                      // остаток
+	OpPow                      // вовзедение в степень
 
-	OpEq
-	OpNe
-	OpLt
-	OpLe
-	OpGt
-	OpGe
+	OpEq // =
+	OpNe // !=
+	OpLt // <
+	OpLe // <=
+	OpGt // >
+	OpGe // >=
 
-	OpNeg
-	OpNot
+	OpNeg // -
+	OpNot // !
 
-	OpJump
-	OpJumpIfFalse
-	OpPop
+	OpJump        // безусловный переход по адрессу
+	OpJumpIfFalse // переход если вершина стека false
+	OpPop         // удаление вершины со стека
 
-	OpCall
-	OpReturn
+	OpCall   // вызов функции
+	OpReturn // вернуть из функции
 )

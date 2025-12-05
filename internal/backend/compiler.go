@@ -8,7 +8,7 @@ import (
 
 type localVar struct {
 	name string
-	slot int
+	slot int // индекс в locals во фрейме vm
 	typ  bytecode.TypeKind
 }
 
@@ -72,6 +72,26 @@ func (c *Compiler) resolveLocal(name string) (int, bool) {
 }
 
 func (c *Compiler) CompileProgram(p *frontend.Program) (*bytecode.Module, error) {
+
+	for _, fn := range p.Functions {
+		if _, exists := c.mod.Functions[fn.Name]; exists {
+			return nil, fmt.Errorf("duplicate function: %s", fn.Name)
+		}
+
+		bfn := &bytecode.FunctionInfo{
+			Name:       fn.Name,
+			ParamCount: len(fn.Params),
+			ParamTypes: make([]bytecode.TypeKind, len(fn.Params)),
+			ReturnType: mapTypeName(fn.ReturnType),
+		}
+
+		for i, p := range fn.Params {
+			bfn.ParamTypes[i] = mapTypeName(p.TypeName)
+		}
+
+		c.mod.Functions[bfn.Name] = bfn
+	}
+
 	for _, fn := range p.Functions {
 		if err := c.compileFunction(fn); err != nil {
 			return nil, err
@@ -81,19 +101,21 @@ func (c *Compiler) CompileProgram(p *frontend.Program) (*bytecode.Module, error)
 }
 
 func (c *Compiler) compileFunction(fn *frontend.FunctionDecl) error {
-	bfn := &bytecode.FunctionInfo{
-		Name:       fn.Name,
-		ParamCount: len(fn.Params),
-		ParamTypes: make([]bytecode.TypeKind, len(fn.Params)),
-		ReturnType: mapTypeName(fn.ReturnType),
-	}
 
-	for i, p := range fn.Params {
-		bfn.ParamTypes[i] = mapTypeName(p.TypeName)
+	bfn, ok := c.mod.Functions[fn.Name]
+	if !ok {
+		return fmt.Errorf("error: function %s not registered", fn.Name)
 	}
 
 	c.fn = bfn
 	c.locals = nil
+
+	bfn.Chunk = bytecode.Chunk{}
+	bfn.NumLocals = 0
+
+	for i, p := range fn.Params {
+		bfn.ParamTypes[i] = mapTypeName(p.TypeName)
+	}
 
 	for _, p := range fn.Params {
 		c.addLocal(p.Name, mapTypeName(p.TypeName))
@@ -107,10 +129,6 @@ func (c *Compiler) compileFunction(fn *frontend.FunctionDecl) error {
 	ch.WriteUint16(uint16(idx), 0)
 	ch.Write(bytecode.OpReturn, 0)
 
-	if c.mod.Functions == nil {
-		c.mod.Functions = make(map[string]*bytecode.FunctionInfo)
-	}
-	c.mod.Functions[bfn.Name] = bfn
 	return nil
 }
 
@@ -195,19 +213,19 @@ func (c *Compiler) compileIf(s *frontend.IfStmt) {
 
 	c.compileExpr(s.Condition)
 
-	ch.Write(bytecode.OpJumpIfFalse, 0)
-	jumpToElse := len(ch.Code)
-	ch.WriteUint16(0, 0)
+	ch.Write(bytecode.OpJumpIfFalse, 0) // если false, перескакиваем в else
+	jumpToElse := len(ch.Code)          // индекс где будут лежать аргументы этой инструкции
+	ch.WriteUint16(0, 0)                //заглушка
 
-	ch.Write(bytecode.OpPop, 0)
+	ch.Write(bytecode.OpPop, 0) // убираем условие, если true
 
 	c.compileBlock(s.ThenBlock)
 
-	ch.Write(bytecode.OpJump, 0)
-	jumpAfterElse := len(ch.Code)
+	ch.Write(bytecode.OpJump, 0)  // перескачить else при true
+	jumpAfterElse := len(ch.Code) // индекс где будут лежать аргументы этой инструкции
 	ch.WriteUint16(0, 0)
 
-	elsePos := len(ch.Code)
+	elsePos := len(ch.Code) //здесь начинается else часть
 	ch.PatchUint16(jumpToElse, uint16(elsePos))
 
 	ch.Write(bytecode.OpPop, 0)
@@ -216,7 +234,7 @@ func (c *Compiler) compileIf(s *frontend.IfStmt) {
 		c.compileBlock(s.ElseBlock)
 	}
 
-	endPos := len(ch.Code)
+	endPos := len(ch.Code) // конец блока if
 	ch.PatchUint16(jumpAfterElse, uint16(endPos))
 }
 
@@ -340,37 +358,10 @@ func (c *Compiler) compileUnary(e *frontend.UnaryExpr) {
 func (c *Compiler) compileBinary(e *frontend.BinaryExpr) {
 	ch := c.chunk()
 
-	c.compileExpr(e.Left)
-	c.compileExpr(e.Right)
-
 	switch e.Op {
-	case "+":
-		ch.Write(bytecode.OpAdd, 0)
-	case "-":
-		ch.Write(bytecode.OpSub, 0)
-	case "*":
-		ch.Write(bytecode.OpMul, 0)
-	case "/":
-		ch.Write(bytecode.OpDiv, 0)
-	case "%":
-		ch.Write(bytecode.OpMod, 0)
-	case "^":
-		ch.Write(bytecode.OpPow, 0)
-
-	case "==":
-		ch.Write(bytecode.OpEq, 0)
-	case "!=":
-		ch.Write(bytecode.OpNe, 0)
-	case "<":
-		ch.Write(bytecode.OpLt, 0)
-	case "<=":
-		ch.Write(bytecode.OpLe, 0)
-	case ">":
-		ch.Write(bytecode.OpGt, 0)
-	case ">=":
-		ch.Write(bytecode.OpGe, 0)
 
 	case "&&":
+
 		c.compileExpr(e.Left)
 
 		ch.Write(bytecode.OpJumpIfFalse, 0)
@@ -386,26 +377,62 @@ func (c *Compiler) compileBinary(e *frontend.BinaryExpr) {
 		return
 
 	case "||":
+
 		c.compileExpr(e.Left)
 
-		ch.Write(bytecode.OpNot, 0)
-
 		ch.Write(bytecode.OpJumpIfFalse, 0)
-		jumpToEnd := len(ch.Code)
+		jumpToRight := len(ch.Code)
 		ch.WriteUint16(0, 0)
 
-		ch.Write(bytecode.OpNot, 0)
+		ch.Write(bytecode.OpJump, 0)
+		jumpAfterTrue := len(ch.Code)
+		ch.WriteUint16(0, 0)
+
+		rightPos := len(ch.Code)
+		ch.PatchUint16(jumpToRight, uint16(rightPos))
 
 		ch.Write(bytecode.OpPop, 0)
 
 		c.compileExpr(e.Right)
-		
+
 		end := len(ch.Code)
-		ch.PatchUint16(jumpToEnd, uint16(end))
+		ch.PatchUint16(jumpAfterTrue, uint16(end))
 		return
 
 	default:
-		panic("unknown binary op: " + e.Op)
+		c.compileExpr(e.Left)
+		c.compileExpr(e.Right)
+
+		switch e.Op {
+		case "+":
+			ch.Write(bytecode.OpAdd, 0)
+		case "-":
+			ch.Write(bytecode.OpSub, 0)
+		case "*":
+			ch.Write(bytecode.OpMul, 0)
+		case "/":
+			ch.Write(bytecode.OpDiv, 0)
+		case "%":
+			ch.Write(bytecode.OpMod, 0)
+		case "^":
+			ch.Write(bytecode.OpPow, 0)
+
+		case "==":
+			ch.Write(bytecode.OpEq, 0)
+		case "!=":
+			ch.Write(bytecode.OpNe, 0)
+		case "<":
+			ch.Write(bytecode.OpLt, 0)
+		case "<=":
+			ch.Write(bytecode.OpLe, 0)
+		case ">":
+			ch.Write(bytecode.OpGt, 0)
+		case ">=":
+			ch.Write(bytecode.OpGe, 0)
+
+		default:
+			panic("unknown binary op: " + e.Op)
+		}
 	}
 }
 

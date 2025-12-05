@@ -1,8 +1,8 @@
 ﻿package bytecode
 
 type Chunk struct {
-	Code      []byte
-	Constants []Value
+	Code      []byte  // байткод(опкод+аргументы)
+	Constants []Value // слайс констант, к которым обращается opConst
 	Lines     []int
 }
 
