@@ -1,5 +1,22 @@
 # compiler
 
+## Типы данных
+- int
+- float
+- string
+- bool
+- void
+- char
+
+## Операторы
+- if
+- else
+- while
+- for
+- return
+- break
+- continue
+
 ## Синтаксис
 
 ```
