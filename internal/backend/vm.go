@@ -278,76 +278,116 @@ func boolValue(b bool) bytecode.Value {
 }
 
 func (vm *VM) binaryNumberOp(op string, a, b bytecode.Value) (bytecode.Value, error) {
-	//TODO сделать еще и везде int
-	var af, bf float64
+	if a.Kind != b.Kind {
+		return bytecode.Value{}, fmt.Errorf("numeric op %s: mixed types %v and %v", op, a.Kind, b.Kind)
+	}
 
 	switch a.Kind {
-	case bytecode.ValFloat:
-		af = a.F
 	case bytecode.ValInt:
-		af = float64(a.I)
-	default:
-		return bytecode.Value{}, fmt.Errorf("%s: left is not number", op)
-	}
+		v, err := intOp(op, a.I, b.I)
+		if err != nil {
+			return bytecode.Value{}, err
+		}
+		return bytecode.Value{Kind: bytecode.ValInt, I: v}, nil
 
-	switch b.Kind {
 	case bytecode.ValFloat:
-		bf = b.F
-	case bytecode.ValInt:
-		bf = float64(b.I)
-	default:
-		return bytecode.Value{}, fmt.Errorf("%s: right is not number", op)
-	}
+		v, err := floatOp(op, a.F, b.F)
+		if err != nil {
+			return bytecode.Value{}, err
+		}
+		return bytecode.Value{Kind: bytecode.ValFloat, F: v}, nil
 
-	res := bytecode.Value{Kind: bytecode.ValFloat}
+	default:
+		return bytecode.Value{}, fmt.Errorf("numeric op %s: unsupported kind %v", op, a.Kind)
+	}
+}
+
+func intOp(op string, a, b int64) (int64, error) {
 	switch op {
 	case "+":
-		res.F = af + bf
+		return a + b, nil
 	case "-":
-		res.F = af - bf
+		return a - b, nil
 	case "*":
-		res.F = af * bf
+		return a * b, nil
 	case "/":
-		res.F = af / bf
+		if b == 0 {
+			return 0, fmt.Errorf("division by zero")
+		}
+		return a / b, nil
 	case "%":
-		res.F = float64(int64(af) % int64(bf))
+		if b == 0 {
+			return 0, fmt.Errorf("modulo by zero")
+		}
+		return a % b, nil
 	case "^":
-		res.F = math.Pow(af, bf)
+		return int64(math.Pow(float64(a), float64(b))), nil
 	default:
-		return bytecode.Value{}, fmt.Errorf("unknown numeric op %q", op)
+		return 0, fmt.Errorf("unknown int op %q", op)
 	}
-	return res, nil
+}
+
+func floatOp(op string, a, b float64) (float64, error) {
+	switch op {
+	case "+":
+		return a + b, nil
+	case "-":
+		return a - b, nil
+	case "*":
+		return a * b, nil
+	case "/":
+		return a / b, nil
+	case "%":
+		return math.Mod(a, b), nil
+	case "^":
+		return math.Pow(a, b), nil
+	default:
+		return 0, fmt.Errorf("unknown float op %q", op)
+	}
 }
 
 func (vm *VM) compareNumbers(op bytecode.OpCode, a, b bytecode.Value) (bool, error) {
-	var af, bf float64
+	if a.Kind != b.Kind {
+		return false, fmt.Errorf("compare: mixed types %v and %v", a.Kind, b.Kind)
+	}
 
 	switch a.Kind {
-	case bytecode.ValFloat:
-		af = a.F
 	case bytecode.ValInt:
-		af = float64(a.I)
-	default:
-		return false, fmt.Errorf("compare: left is not number")
-	}
-	switch b.Kind {
-	case bytecode.ValFloat:
-		bf = b.F
-	case bytecode.ValInt:
-		bf = float64(b.I)
-	default:
-		return false, fmt.Errorf("compare: right is not number")
-	}
+		return compareInt(op, a.I, b.I)
 
+	case bytecode.ValFloat:
+		return compareFloat(op, a.F, b.F)
+
+	default:
+		return false, fmt.Errorf("compare: not a number")
+	}
+}
+
+func compareInt(op bytecode.OpCode, a, b int64) (bool, error) {
 	switch op {
 	case bytecode.OpLt:
-		return af < bf, nil
+		return a < b, nil
 	case bytecode.OpLe:
-		return af <= bf, nil
+		return a <= b, nil
 	case bytecode.OpGt:
-		return af > bf, nil
+		return a > b, nil
 	case bytecode.OpGe:
-		return af >= bf, nil
+		return a >= b, nil
+	default:
+		return false, fmt.Errorf("unknown compare op %d", op)
+	}
+}
+
+func compareFloat(op bytecode.OpCode, a, b float64) (bool, error) {
+	switch op {
+	case bytecode.OpLt:
+		return a < b, nil
+	case bytecode.OpLe:
+		return a <= b, nil
+	case bytecode.OpGt:
+		return a > b, nil
+	case bytecode.OpGe:
+		return a >= b, nil
 	default:
 		return false, fmt.Errorf("unknown compare op %d", op)
 	}
