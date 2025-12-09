@@ -41,7 +41,6 @@ func (p *Parser) parseLogicalAnd() ast.Expr {
 			Right: right,
 		}
 	}
-
 	return expr
 }
 
@@ -197,16 +196,7 @@ func (p *Parser) parsePrimary() ast.Expr {
 		}
 	}
 
-	if p.match(token.TokenTrue) {
-		t := p.previous()
-		return &ast.LiteralExpr{
-			Lexeme: t.Text,
-			Token:  t.Type,
-			Type:   types.TypeFromToken(token.TokenBool),
-		}
-	}
-
-	if p.match(token.TokenFalse) {
+	if p.match(token.TokenFalse) || p.match(token.TokenTrue) {
 		t := p.previous()
 		return &ast.LiteralExpr{
 			Lexeme: t.Text,

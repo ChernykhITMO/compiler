@@ -44,6 +44,8 @@ func (c *Checker) Check(program *ast.Program) []SemanticError {
 }
 
 func (c *Checker) checkFunction(fn *ast.FunctionDecl) {
+	c.pushScope()
+	defer c.popScope()
 
 	for _, param := range fn.Params {
 		c.declareVar(param.Name)
@@ -67,6 +69,10 @@ func (c *Checker) checkBlock(block *ast.BlockStmt) {
 func (c *Checker) checkStatement(stmt ast.Stmt) {
 	switch s := stmt.(type) {
 	case *ast.VarDeclStmt:
+		c.declareVar(s.Name)
+		if s.Init != nil {
+			c.checkExpression(s.Init)
+		}
 
 	case *ast.AssignStmt:
 		c.checkExpression(s.Target)
@@ -112,12 +118,6 @@ func (c *Checker) checkExpression(expr ast.Expr) {
 			c.addError(undeclaredVariable,
 				fmt.Sprintf("variable '%s' is not declared", e.Name))
 		}
-		/*_, ok1 := c.variables[e.Name]
-		_, ok2 := c.functions[e.Name]
-		if !ok1 && !ok2 {
-			c.addError("UndeclaredVariable",
-				fmt.Sprintf("'%s' is not declared", e.Name))
-		}*/
 
 	case *ast.CallExpr:
 		if ident, ok := e.Callee.(*ast.IdentExpr); ok {
@@ -136,6 +136,8 @@ func (c *Checker) checkExpression(expr ast.Expr) {
 
 	case *ast.UnaryExpr:
 		c.checkExpression(e.Expr)
+
+	case *ast.LiteralExpr:
 	}
 }
 

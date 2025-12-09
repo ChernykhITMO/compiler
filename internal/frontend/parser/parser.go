@@ -302,7 +302,7 @@ func printExpr(e ast.Expr, indent int) {
 func printInlineStmt(s ast.Stmt) {
 	switch st := s.(type) {
 	case *ast.VarDeclStmt:
-		fmt.Printf("%s %s", st.Name, st.Type)
+		fmt.Printf("%s %s", st.Type, st.Name)
 		if st.Init != nil {
 			fmt.Print(" = ")
 			printInlineExpr(st.Init)
