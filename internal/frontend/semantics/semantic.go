@@ -3,7 +3,12 @@ package semantics
 import (
 	"fmt"
 
-	"github.com/ChernykhITMO/compiler/internal/frontend"
+	"github.com/ChernykhITMO/compiler/internal/frontend/ast"
+)
+
+const (
+	duplicateVar       = "duplicateVariable"
+	undeclaredVariable = "UndeclaredVariable"
 )
 
 type SemanticError struct {
@@ -13,19 +18,18 @@ type SemanticError struct {
 
 type Checker struct {
 	functions map[string]struct{}
-	variables map[string]struct{}
 	errors    []SemanticError
+	scopes    []map[string]struct{}
 }
 
 func NewChecker() *Checker {
 	return &Checker{
 		functions: make(map[string]struct{}),
-		variables: make(map[string]struct{}),
 		errors:    make([]SemanticError, 0),
 	}
 }
 
-func (c *Checker) Check(program *frontend.Program) []SemanticError {
+func (c *Checker) Check(program *ast.Program) []SemanticError {
 	c.errors = []SemanticError{}
 
 	for _, fn := range program.Functions {
@@ -39,60 +43,55 @@ func (c *Checker) Check(program *frontend.Program) []SemanticError {
 	return c.errors
 }
 
-func (c *Checker) checkFunction(fn *frontend.FunctionDecl) {
-	c.variables = make(map[string]struct{})
+func (c *Checker) checkFunction(fn *ast.FunctionDecl) {
 
 	for _, param := range fn.Params {
-		c.variables[param.Name] = struct{}{}
+		c.declareVar(param.Name)
 	}
 
 	c.checkBlock(fn.Body)
 }
 
-func (c *Checker) checkBlock(block *frontend.BlockStmt) {
+func (c *Checker) checkBlock(block *ast.BlockStmt) {
 	if block == nil {
 		return
 	}
+	c.pushScope()
+	defer c.popScope()
 
 	for _, stmt := range block.Statements {
 		c.checkStatement(stmt)
 	}
 }
 
-func (c *Checker) checkStatement(stmt frontend.Stmt) {
+func (c *Checker) checkStatement(stmt ast.Stmt) {
 	switch s := stmt.(type) {
-	case *frontend.VarDeclStmt:
-		if _, ok := c.variables[s.Name]; ok {
-			c.addError("DuplicateVariable",
-				fmt.Sprintf("Variable '%s' already declared", s.Name))
-		} else {
-			c.variables[s.Name] = struct{}{}
-		}
+	case *ast.VarDeclStmt:
 
-	case *frontend.AssignStmt:
+	case *ast.AssignStmt:
 		c.checkExpression(s.Target)
 		c.checkExpression(s.Value)
 
-	case *frontend.ExprStmt:
+	case *ast.ExprStmt:
 		c.checkExpression(s.Expr)
 
-	case *frontend.ReturnStmt:
+	case *ast.ReturnStmt:
 		if s.Value != nil {
 			c.checkExpression(s.Value)
 		}
 
-	case *frontend.IfStmt:
+	case *ast.IfStmt:
 		c.checkExpression(s.Condition)
 		c.checkBlock(s.ThenBlock)
 		if s.ElseBlock != nil {
 			c.checkBlock(s.ElseBlock)
 		}
 
-	case *frontend.WhileStmt:
+	case *ast.WhileStmt:
 		c.checkExpression(s.Condition)
 		c.checkBlock(s.Body)
 
-	case *frontend.ForStmt:
+	case *ast.ForStmt:
 		if s.Init != nil {
 			c.checkStatement(s.Init)
 		}
@@ -106,18 +105,22 @@ func (c *Checker) checkStatement(stmt frontend.Stmt) {
 	}
 }
 
-func (c *Checker) checkExpression(expr frontend.Expr) {
+func (c *Checker) checkExpression(expr ast.Expr) {
 	switch e := expr.(type) {
-	case *frontend.IdentExpr:
-		_, ok1 := c.variables[e.Name]
+	case *ast.IdentExpr:
+		if !c.isVarDeclared(e.Name) {
+			c.addError(undeclaredVariable,
+				fmt.Sprintf("variable '%s' is not declared", e.Name))
+		}
+		/*_, ok1 := c.variables[e.Name]
 		_, ok2 := c.functions[e.Name]
 		if !ok1 && !ok2 {
 			c.addError("UndeclaredVariable",
 				fmt.Sprintf("'%s' is not declared", e.Name))
-		}
+		}*/
 
-	case *frontend.CallExpr:
-		if ident, ok := e.Callee.(*frontend.IdentExpr); ok {
+	case *ast.CallExpr:
+		if ident, ok := e.Callee.(*ast.IdentExpr); ok {
 			if _, ok := c.functions[ident.Name]; !ok {
 				c.addError("UndeclaredFunction",
 					fmt.Sprintf("Function '%s' is not declared", ident.Name))
@@ -127,15 +130,12 @@ func (c *Checker) checkExpression(expr frontend.Expr) {
 			c.checkExpression(arg)
 		}
 
-	case *frontend.BinaryExpr:
+	case *ast.BinaryExpr:
 		c.checkExpression(e.Left)
 		c.checkExpression(e.Right)
 
-	case *frontend.UnaryExpr:
+	case *ast.UnaryExpr:
 		c.checkExpression(e.Expr)
-
-	case *frontend.NumberExpr, *frontend.StringExpr,
-		*frontend.BoolExpr, *frontend.NullExpr:
 	}
 }
 
@@ -144,4 +144,31 @@ func (c *Checker) addError(errType, message string) {
 		Type:    errType,
 		Message: message,
 	})
+}
+
+func (c *Checker) pushScope() {
+	c.scopes = append(c.scopes, make(map[string]struct{}))
+}
+
+func (c *Checker) popScope() {
+	c.scopes = c.scopes[:len(c.scopes)-1]
+}
+
+func (c *Checker) declareVar(name string) {
+	scope := c.scopes[len(c.scopes)-1]
+	if _, ok := scope[name]; ok {
+		c.addError(duplicateVar,
+			fmt.Sprintf("variable '%s already exists in this scope", name))
+		return
+	}
+	scope[name] = struct{}{}
+}
+
+func (c *Checker) isVarDeclared(name string) bool {
+	for _, scope := range c.scopes {
+		if _, ok := scope[name]; ok {
+			return true
+		}
+	}
+	return false
 }

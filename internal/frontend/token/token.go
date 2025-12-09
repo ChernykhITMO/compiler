@@ -1,4 +1,4 @@
-package frontend
+package token
 
 type TokenType int
 
@@ -20,6 +20,8 @@ const (
 	TokenWhile
 	TokenFor
 	TokenReturn
+	TokenBreak
+	TokenContinue
 
 	TokenNull
 	TokenTrue
@@ -52,11 +54,8 @@ const (
 	TokenRightBracket
 	TokenComma
 	TokenNewline
-
 	TokenEnd
 	TokenSemicolon
-	TokenBreak
-	TokenContinue
 )
 
 type Token struct {
