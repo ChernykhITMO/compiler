@@ -3,7 +3,10 @@
 import (
 	"fmt"
 	"github.com/ChernykhITMO/compiler/internal/bytecode"
-	"github.com/ChernykhITMO/compiler/internal/frontend"
+	"github.com/ChernykhITMO/compiler/internal/frontend/ast"
+	"github.com/ChernykhITMO/compiler/internal/frontend/token"
+	"github.com/ChernykhITMO/compiler/internal/frontend/types"
+	"strconv"
 )
 
 type localVar struct {
@@ -33,19 +36,19 @@ func (c *Compiler) Module() *bytecode.Module {
 	return c.mod
 }
 
-func mapTypeName(t string) bytecode.TypeKind {
-	switch t {
-	case "int":
+func mapTypeName(t types.Type) bytecode.TypeKind {
+	switch t.Kind {
+	case types.TypeInt:
 		return bytecode.TypeInt
-	case "float":
+	case types.TypeFloat:
 		return bytecode.TypeFloat
-	case "string":
+	case types.TypeString:
 		return bytecode.TypeString
-	case "bool":
+	case types.TypeBool:
 		return bytecode.TypeBool
-	case "char":
+	case types.TypeChar:
 		return bytecode.TypeChar
-	case "void":
+	case types.TypeVoid:
 		return bytecode.TypeVoid
 	default:
 		return bytecode.TypeInvalid
@@ -71,7 +74,7 @@ func (c *Compiler) resolveLocal(name string) (int, bool) {
 	return 0, false
 }
 
-func (c *Compiler) CompileProgram(p *frontend.Program) (*bytecode.Module, error) {
+func (c *Compiler) CompileProgram(p *ast.Program) (*bytecode.Module, error) {
 
 	for _, fn := range p.Functions {
 		if _, exists := c.mod.Functions[fn.Name]; exists {
@@ -86,7 +89,7 @@ func (c *Compiler) CompileProgram(p *frontend.Program) (*bytecode.Module, error)
 		}
 
 		for i, p := range fn.Params {
-			bfn.ParamTypes[i] = mapTypeName(p.TypeName)
+			bfn.ParamTypes[i] = mapTypeName(p.Type)
 		}
 
 		c.mod.Functions[bfn.Name] = bfn
@@ -100,7 +103,7 @@ func (c *Compiler) CompileProgram(p *frontend.Program) (*bytecode.Module, error)
 	return c.mod, nil
 }
 
-func (c *Compiler) compileFunction(fn *frontend.FunctionDecl) error {
+func (c *Compiler) compileFunction(fn *ast.FunctionDecl) error {
 
 	bfn, ok := c.mod.Functions[fn.Name]
 	if !ok {
@@ -114,11 +117,11 @@ func (c *Compiler) compileFunction(fn *frontend.FunctionDecl) error {
 	bfn.NumLocals = 0
 
 	for i, p := range fn.Params {
-		bfn.ParamTypes[i] = mapTypeName(p.TypeName)
+		bfn.ParamTypes[i] = mapTypeName(p.Type)
 	}
 
 	for _, p := range fn.Params {
-		c.addLocal(p.Name, mapTypeName(p.TypeName))
+		c.addLocal(p.Name, mapTypeName(p.Type))
 	}
 
 	c.compileBlock(fn.Body)
@@ -132,37 +135,37 @@ func (c *Compiler) compileFunction(fn *frontend.FunctionDecl) error {
 	return nil
 }
 
-func (c *Compiler) compileBlock(b *frontend.BlockStmt) {
+func (c *Compiler) compileBlock(b *ast.BlockStmt) {
 	for _, stmt := range b.Statements {
 		c.compileStmt(stmt)
 	}
 }
 
-func (c *Compiler) compileStmt(s frontend.Stmt) {
+func (c *Compiler) compileStmt(s ast.Stmt) {
 	switch st := s.(type) {
-	case *frontend.VarDeclStmt:
+	case *ast.VarDeclStmt:
 		c.compileVarDecl(st)
-	case *frontend.AssignStmt:
+	case *ast.AssignStmt:
 		c.compileAssign(st)
-	case *frontend.ExprStmt:
+	case *ast.ExprStmt:
 		c.compileExpr(st.Expr)
 		c.chunk().Write(bytecode.OpPop, 0)
-	case *frontend.ReturnStmt:
+	case *ast.ReturnStmt:
 		c.compileReturn(st)
-	case *frontend.IfStmt:
+	case *ast.IfStmt:
 		c.compileIf(st)
-	case *frontend.WhileStmt:
+	case *ast.WhileStmt:
 		c.compileWhile(st)
-	case *frontend.ForStmt:
+	case *ast.ForStmt:
 		c.compileFor(st)
 	default:
 		panic(fmt.Sprintf("unknown stmt %T", st))
 	}
 }
 
-func (c *Compiler) compileVarDecl(s *frontend.VarDeclStmt) {
+func (c *Compiler) compileVarDecl(s *ast.VarDeclStmt) {
 	ch := c.chunk()
-	typ := mapTypeName(s.TypeName)
+	typ := mapTypeName(s.Type)
 
 	if s.Init != nil {
 		c.compileExpr(s.Init)
@@ -178,12 +181,12 @@ func (c *Compiler) compileVarDecl(s *frontend.VarDeclStmt) {
 	ch.WriteByte(byte(slot), 0)
 }
 
-func (c *Compiler) compileAssign(s *frontend.AssignStmt) {
+func (c *Compiler) compileAssign(s *ast.AssignStmt) {
 	ch := c.chunk()
 
 	c.compileExpr(s.Value)
 
-	ident, ok := s.Target.(*frontend.IdentExpr)
+	ident, ok := s.Target.(*ast.IdentExpr)
 	if !ok {
 		panic("assignment to non-identifier not supported")
 	}
@@ -196,7 +199,7 @@ func (c *Compiler) compileAssign(s *frontend.AssignStmt) {
 	}
 }
 
-func (c *Compiler) compileReturn(s *frontend.ReturnStmt) {
+func (c *Compiler) compileReturn(s *ast.ReturnStmt) {
 	ch := c.chunk()
 	if s.Value != nil {
 
@@ -210,7 +213,7 @@ func (c *Compiler) compileReturn(s *frontend.ReturnStmt) {
 	ch.Write(bytecode.OpReturn, 0)
 }
 
-func (c *Compiler) compileIf(s *frontend.IfStmt) {
+func (c *Compiler) compileIf(s *ast.IfStmt) {
 	ch := c.chunk()
 
 	c.compileExpr(s.Condition)
@@ -240,7 +243,7 @@ func (c *Compiler) compileIf(s *frontend.IfStmt) {
 	ch.PatchUint16(jumpAfterElse, uint16(endPos))
 }
 
-func (c *Compiler) compileWhile(s *frontend.WhileStmt) {
+func (c *Compiler) compileWhile(s *ast.WhileStmt) {
 	ch := c.chunk()
 
 	loopStart := len(ch.Code)
@@ -263,63 +266,92 @@ func (c *Compiler) compileWhile(s *frontend.WhileStmt) {
 	ch.Write(bytecode.OpPop, 0)
 }
 
-func (c *Compiler) compileExpr(e frontend.Expr) {
+func (c *Compiler) compileExpr(e ast.Expr) {
+
 	switch ex := e.(type) {
+	case *ast.IdentExpr:
+		c.compileIdent(ex)
+	case *ast.LiteralExpr:
+		c.compileLiteral(ex)
+	case *ast.UnaryExpr:
+		c.compileUnary(ex)
+	case *ast.BinaryExpr:
+		c.compileBinary(ex)
+	case *ast.CallExpr:
+		c.compileCall(ex)
+	}
 
-	case *frontend.NumberExpr:
-		c.compileNumber(ex)
+}
 
-	case *frontend.StringExpr:
-		c.compileString(ex)
+func (c *Compiler) compileLiteral(l *ast.LiteralExpr) {
 
-	case *frontend.BoolExpr:
-		c.compileBool(ex)
-
-	case *frontend.NullExpr:
+	switch l.Type.Kind {
+	case types.TypeInt:
+		c.compileInt(l)
+	case types.TypeFloat:
+		c.compileFloat(l)
+	case types.TypeString:
+		c.compileString(l)
+	case types.TypeBool:
+		c.compileBool(l)
+	case types.TypeChar:
+		c.compileChar(l)
+	case types.TypeNull:
 		c.compileNull()
 
-	case *frontend.IdentExpr:
-		c.compileIdent(ex)
-
-	case *frontend.UnaryExpr:
-		c.compileUnary(ex)
-
-	case *frontend.BinaryExpr:
-		c.compileBinary(ex)
-
-	case *frontend.CallExpr:
-		c.compileCall(ex)
-
 	default:
-		panic(fmt.Sprintf("unknown expr %T", e))
+		panic(fmt.Sprintf("unknown type %T", l.Type))
 	}
+
 }
 
-func (c *Compiler) compileNumber(e *frontend.NumberExpr) {
+func (c *Compiler) compileInt(l *ast.LiteralExpr) {
 	ch := c.chunk()
-	v := bytecode.Value{Kind: bytecode.ValFloat, F: e.Value}
+	intVal, _ := strconv.Atoi(l.Lexeme)
+	v := bytecode.Value{Kind: bytecode.ValInt, I: int64(intVal)}
 
 	ch.Write(bytecode.OpConst, 0)
 	idx := ch.AddConstant(v)
 	ch.WriteUint16(uint16(idx), 0)
 }
 
-func (c *Compiler) compileString(e *frontend.StringExpr) {
+func (c *Compiler) compileFloat(l *ast.LiteralExpr) {
 	ch := c.chunk()
-	v := bytecode.Value{Kind: bytecode.ValString, S: e.Value}
+	floatVal, _ := strconv.ParseFloat(l.Lexeme, 32)
+	v := bytecode.Value{Kind: bytecode.ValFloat, F: floatVal}
 
 	ch.Write(bytecode.OpConst, 0)
 	idx := ch.AddConstant(v)
 	ch.WriteUint16(uint16(idx), 0)
 }
 
-func (c *Compiler) compileBool(e *frontend.BoolExpr) {
+func (c *Compiler) compileString(l *ast.LiteralExpr) {
 	ch := c.chunk()
-	v := bytecode.Value{Kind: bytecode.ValBool, B: e.Value}
+	v := bytecode.Value{Kind: bytecode.ValString, S: l.Lexeme}
 
 	ch.Write(bytecode.OpConst, 0)
 	idx := ch.AddConstant(v)
 	ch.WriteUint16(uint16(idx), 0)
+}
+
+func (c *Compiler) compileBool(l *ast.LiteralExpr) {
+	ch := c.chunk()
+	boolV, _ := strconv.ParseBool(l.Lexeme)
+	v := bytecode.Value{Kind: bytecode.ValBool, B: boolV}
+
+	ch.Write(bytecode.OpConst, 0)
+	idx := ch.AddConstant(v)
+	ch.WriteUint16(uint16(idx), 0)
+}
+
+func (c *Compiler) compileChar(l *ast.LiteralExpr) {
+	ch := c.chunk()
+	v := bytecode.Value{Kind: bytecode.ValChar, C: l.Lexeme[0]}
+
+	ch.Write(bytecode.OpConst, 0)
+	idx := ch.AddConstant(v)
+	ch.WriteUint16(uint16(idx), 0)
+
 }
 
 func (c *Compiler) compileNull() {
@@ -330,7 +362,7 @@ func (c *Compiler) compileNull() {
 	ch.WriteUint16(uint16(idx), 0)
 }
 
-func (c *Compiler) compileIdent(e *frontend.IdentExpr) {
+func (c *Compiler) compileIdent(e *ast.IdentExpr) {
 	ch := c.chunk()
 
 	if slot, ok := c.resolveLocal(e.Name); ok {
@@ -342,27 +374,27 @@ func (c *Compiler) compileIdent(e *frontend.IdentExpr) {
 	panic("unknown variable: " + e.Name)
 }
 
-func (c *Compiler) compileUnary(e *frontend.UnaryExpr) {
+func (c *Compiler) compileUnary(e *ast.UnaryExpr) {
 	c.compileExpr(e.Expr)
 
 	ch := c.chunk()
 
 	switch e.Op {
-	case "-":
+	case token.TokenMinus:
 		ch.Write(bytecode.OpNeg, 0)
-	case "!":
+	case token.TokenNot:
 		ch.Write(bytecode.OpNot, 0)
 	default:
-		panic("unknown unary op: " + e.Op)
+		panic("unknown unary op")
 	}
 }
 
-func (c *Compiler) compileBinary(e *frontend.BinaryExpr) {
+func (c *Compiler) compileBinary(e *ast.BinaryExpr) {
 	ch := c.chunk()
 
 	switch e.Op {
 
-	case "&&":
+	case token.TokenAnd:
 
 		c.compileExpr(e.Left)
 
@@ -378,7 +410,7 @@ func (c *Compiler) compileBinary(e *frontend.BinaryExpr) {
 		ch.PatchUint16(jumpToEnd, uint16(end))
 		return
 
-	case "||":
+	case token.TokenOr:
 
 		c.compileExpr(e.Left)
 
@@ -406,42 +438,42 @@ func (c *Compiler) compileBinary(e *frontend.BinaryExpr) {
 		c.compileExpr(e.Right)
 
 		switch e.Op {
-		case "+":
+		case token.TokenPlus:
 			ch.Write(bytecode.OpAdd, 0)
-		case "-":
+		case token.TokenMinus:
 			ch.Write(bytecode.OpSub, 0)
-		case "*":
+		case token.TokenMultiply:
 			ch.Write(bytecode.OpMul, 0)
-		case "/":
+		case token.TokenDivide:
 			ch.Write(bytecode.OpDiv, 0)
-		case "%":
+		case token.TokenModulo:
 			ch.Write(bytecode.OpMod, 0)
-		case "^":
+		case token.TokenPower:
 			ch.Write(bytecode.OpPow, 0)
 
-		case "==":
+		case token.TokenEqual:
 			ch.Write(bytecode.OpEq, 0)
-		case "!=":
+		case token.TokenNotEqual:
 			ch.Write(bytecode.OpNe, 0)
-		case "<":
+		case token.TokenLess:
 			ch.Write(bytecode.OpLt, 0)
-		case "<=":
+		case token.TokenLessEqual:
 			ch.Write(bytecode.OpLe, 0)
-		case ">":
+		case token.TokenGreater:
 			ch.Write(bytecode.OpGt, 0)
-		case ">=":
+		case token.TokenGreaterEqual:
 			ch.Write(bytecode.OpGe, 0)
 
 		default:
-			panic("unknown binary op: " + e.Op)
+			panic("unknown binary op")
 		}
 	}
 }
 
-func (c *Compiler) compileCall(e *frontend.CallExpr) {
+func (c *Compiler) compileCall(e *ast.CallExpr) {
 	ch := c.chunk()
 
-	id, ok := e.Callee.(*frontend.IdentExpr)
+	id, ok := e.Callee.(*ast.IdentExpr)
 	if !ok {
 		panic("call of non-identifier is not supported")
 	}
@@ -465,7 +497,7 @@ func (c *Compiler) compileCall(e *frontend.CallExpr) {
 	ch.WriteUint16(uint16(idx), 0)
 }
 
-func (c *Compiler) compileFor(s *frontend.ForStmt) {
+func (c *Compiler) compileFor(s *ast.ForStmt) {
 	ch := c.chunk()
 
 	if s.Init != nil {
