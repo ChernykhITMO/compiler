@@ -1,12 +1,17 @@
-package frontend
+package semantics
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ChernykhITMO/compiler/internal/frontend/ast"
+	"github.com/ChernykhITMO/compiler/internal/frontend/types"
+)
 
 const (
 	duplicateFunction  = "Duplicate function"
 	duplicateParameter = "Duplicate parameter"
 	mainSignature      = "Main signature"
-	mainReturnType     = "Main return type"
+	mainReturnType     = "Main return types"
 	noMainFunction     = "No main function"
 	invalidReturn      = "Invalid return"
 	missingReturnValue = "Missing return value"
@@ -29,7 +34,7 @@ func NewASTValidator() *ASTValidator {
 	}
 }
 
-func (v *ASTValidator) Validate(program *Program) []ValidationError {
+func (v *ASTValidator) Validate(program *ast.Program) []ValidationError {
 	v.errors = []ValidationError{}
 
 	for _, fn := range program.Functions {
@@ -45,7 +50,7 @@ func (v *ASTValidator) Validate(program *Program) []ValidationError {
 	return v.errors
 }
 
-func (v *ASTValidator) validateFunction(fun *FunctionDecl) {
+func (v *ASTValidator) validateFunction(fun *ast.FunctionDecl) {
 	if _, ok := v.functions[fun.Name]; ok {
 		v.addError(duplicateFunction,
 			fmt.Sprintf("Function '%s' is already defined", fun.Name))
@@ -65,7 +70,7 @@ func (v *ASTValidator) validateFunction(fun *FunctionDecl) {
 	v.validateReturnStatements(fun.Body, fun.ReturnType, fun.Name)
 }
 
-func (v *ASTValidator) validateMainFunction(program *Program) {
+func (v *ASTValidator) validateMainFunction(program *ast.Program) {
 	hasMain := false
 	mainCount := 0
 
@@ -82,9 +87,9 @@ func (v *ASTValidator) validateMainFunction(program *Program) {
 					fmt.Sprintf("main doesn't have parameters"))
 			}
 
-			if fun.ReturnType != "void" {
+			if fun.ReturnType.Kind != types.TypeVoid {
 				v.addError(mainReturnType,
-					fmt.Sprintf("main should be void type"))
+					fmt.Sprintf("main should be void types"))
 			}
 		}
 	}
@@ -94,7 +99,7 @@ func (v *ASTValidator) validateMainFunction(program *Program) {
 	}
 }
 
-func (v *ASTValidator) validateBlock(block *BlockStmt, context string) {
+func (v *ASTValidator) validateBlock(block *ast.BlockStmt, context string) {
 	if block == nil {
 		return
 	}
@@ -104,35 +109,35 @@ func (v *ASTValidator) validateBlock(block *BlockStmt, context string) {
 	}
 }
 
-func (v *ASTValidator) validateStatement(stmt Stmt, context string) {
+func (v *ASTValidator) validateStatement(stmt ast.Stmt, context string) {
 	switch s := stmt.(type) {
-	case *VarDeclStmt:
+	case *ast.VarDeclStmt:
 		if s.Init != nil {
 			v.validateExpression(s.Init, context)
 		}
 
-	case *AssignStmt:
+	case *ast.AssignStmt:
 		v.validateExpression(s.Target, context)
 		v.validateExpression(s.Value, context)
 
-	case *ReturnStmt:
+	case *ast.ReturnStmt:
 		if s.Value != nil {
 			v.validateExpression(s.Value, context)
 		}
 
-	case *IfStmt:
+	case *ast.IfStmt:
 		v.validateExpression(s.Condition, context)
 		v.validateBlock(s.ThenBlock, context)
 		v.validateBlock(s.ElseBlock, context)
 
-	case *WhileStmt:
+	case *ast.WhileStmt:
 		v.validateExpression(s.Condition, context)
 		v.validateBlock(s.Body, context)
 
-	case *ExprStmt:
+	case *ast.ExprStmt:
 		v.validateExpression(s.Expr, context)
 
-	case *ForStmt:
+	case *ast.ForStmt:
 		if s.Init != nil {
 			v.validateStatement(s.Init, context)
 		}
@@ -143,27 +148,29 @@ func (v *ASTValidator) validateStatement(stmt Stmt, context string) {
 			v.validateStatement(s.Increment, context)
 		}
 		v.validateBlock(s.Body, context)
-	case *BreakStmt, *ContinueStmt:
+	case *ast.BreakStmt, *ast.ContinueStmt:
 		// позже допишу, пока нет идеи что проверять
 	}
 
 }
 
-func (v *ASTValidator) validateExpression(expr Expr, context string) {
+func (v *ASTValidator) validateExpression(expr ast.Expr, context string) {
 	switch e := expr.(type) {
-	case *BinaryExpr:
+
+	case *ast.BinaryExpr:
 		v.validateExpression(e.Left, context)
 		v.validateExpression(e.Right, context)
 
-	case *UnaryExpr:
+	case *ast.UnaryExpr:
 		v.validateExpression(e.Expr, context)
 
-	case *CallExpr:
+	case *ast.CallExpr:
 		v.validateExpression(e.Callee, context)
 		for _, arg := range e.Args {
 			v.validateExpression(arg, context)
 		}
-	case *IdentExpr, *NumberExpr, *StringExpr, *BoolExpr, *NullExpr:
+
+	case *ast.IdentExpr, *ast.LiteralExpr:
 		return
 	}
 }
@@ -175,29 +182,29 @@ func (v *ASTValidator) addError(errType, message string) {
 	})
 }
 
-func (v *ASTValidator) validateReturnStatements(block *BlockStmt, expectedType string, funcName string) {
+func (v *ASTValidator) validateReturnStatements(block *ast.BlockStmt, expectedType types.Type, funcName string) {
 	if block == nil {
 		return
 	}
 
 	for _, stmt := range block.Statements {
 		switch s := stmt.(type) {
-		case *ReturnStmt:
-			if expectedType == "void" && s.Value != nil {
+		case *ast.ReturnStmt:
+			if expectedType.Kind == types.TypeVoid && s.Value != nil {
 				v.addError(invalidReturn,
 					fmt.Sprintf("Function '%s' returns value but declared as void", funcName))
 			}
-			if expectedType != "void" && s.Value == nil {
+			if expectedType.Kind != types.TypeVoid && s.Value == nil {
 				v.addError(missingReturnValue,
-					fmt.Sprintf("Function '%s' must return a value of type %s",
+					fmt.Sprintf("Function '%s' must return a value of types %s",
 						funcName, expectedType))
 			}
-		case *IfStmt:
+		case *ast.IfStmt:
 			v.validateReturnStatements(s.ThenBlock, expectedType, funcName)
 			v.validateReturnStatements(s.ElseBlock, expectedType, funcName)
-		case *WhileStmt:
+		case *ast.WhileStmt:
 			v.validateReturnStatements(s.Body, expectedType, funcName)
-		case *ForStmt:
+		case *ast.ForStmt:
 			v.validateReturnStatements(s.Body, expectedType, funcName)
 		}
 	}

@@ -4,48 +4,51 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ChernykhITMO/compiler/internal/frontend"
+	"github.com/ChernykhITMO/compiler/internal/frontend/ast"
+	"github.com/ChernykhITMO/compiler/internal/frontend/token"
+	"github.com/ChernykhITMO/compiler/internal/frontend/types"
 )
 
 type Parser struct {
-	tokens []frontend.Token
+	tokens []token.Token
 	pos    int
 }
 
-func NewParser(tokens []frontend.Token) *Parser {
+func NewParser(tokens []token.Token) *Parser {
 	return &Parser{tokens: tokens, pos: 0}
 }
 
-func (p *Parser) current() frontend.Token {
+func (p *Parser) current() token.Token {
 	if p.pos < len(p.tokens) {
 		return p.tokens[p.pos]
 	}
 	return p.tokens[len(p.tokens)-1]
 }
 
-func (p *Parser) previous() frontend.Token {
+func (p *Parser) previous() token.Token {
+
 	return p.tokens[p.pos-1]
 }
 
 func (p *Parser) isAtEnd() bool {
-	return p.current().Type == frontend.TokenEnd
+	return p.current().Type == token.TokenEnd
 }
 
-func (p *Parser) check(tt frontend.TokenType) bool {
+func (p *Parser) check(tt token.TokenType) bool {
 	if p.isAtEnd() {
 		return false
 	}
 	return p.current().Type == tt
 }
 
-func (p *Parser) advance() frontend.Token {
+func (p *Parser) advance() token.Token {
 	if !p.isAtEnd() {
 		p.pos++
 	}
 	return p.previous()
 }
 
-func (p *Parser) match(tt frontend.TokenType) bool {
+func (p *Parser) match(tt token.TokenType) bool {
 	if p.check(tt) {
 		_ = p.advance()
 		return true
@@ -53,7 +56,7 @@ func (p *Parser) match(tt frontend.TokenType) bool {
 	return false
 }
 
-func (p *Parser) consume(tt frontend.TokenType, msg string) frontend.Token {
+func (p *Parser) consume(tt token.TokenType, msg string) token.Token {
 	if p.check(tt) {
 		return p.advance()
 	}
@@ -61,31 +64,31 @@ func (p *Parser) consume(tt frontend.TokenType, msg string) frontend.Token {
 	panic(fmt.Errorf("parse error at pos %d: %s", cur.Pos, msg))
 }
 
-func (p *Parser) parseTypeName() string {
+func (p *Parser) parseTypeName() types.Type {
 	switch {
-	case p.match(frontend.TokenInt):
-		return "int"
-	case p.match(frontend.TokenFloat):
-		return "float"
-	case p.match(frontend.TokenString):
-		return "string"
-	case p.match(frontend.TokenBool):
-		return "bool"
-	case p.match(frontend.TokenChar):
-		return "char"
-	case p.match(frontend.TokenVoid):
-		return "void"
+	case p.match(token.TokenInt):
+		return types.TypeFromToken(token.TokenInt)
+	case p.match(token.TokenFloat):
+		return types.TypeFromToken(token.TokenFloat)
+	case p.match(token.TokenString):
+		return types.TypeFromToken(token.TokenString)
+	case p.match(token.TokenBool):
+		return types.TypeFromToken(token.TokenBool)
+	case p.match(token.TokenChar):
+		return types.TypeFromToken(token.TokenChar)
+	case p.match(token.TokenVoid):
+		return types.TypeFromToken(token.TokenVoid)
 	default:
 		cur := p.current()
-		panic(fmt.Errorf("parse error at pos %d: expected type name", cur.Pos))
+		panic(fmt.Errorf("parse error at pos %d: expected types name", cur.Pos))
 	}
 }
 
-func (p *Parser) ParseProgram() *frontend.Program {
-	prog := &frontend.Program{}
+func (p *Parser) ParseProgram() *ast.Program {
+	prog := &ast.Program{}
 
 	for !p.isAtEnd() {
-		for p.match(frontend.TokenNewline) {
+		for p.match(token.TokenNewline) {
 		}
 		if p.isAtEnd() {
 			break
@@ -96,52 +99,52 @@ func (p *Parser) ParseProgram() *frontend.Program {
 	return prog
 }
 
-func (p *Parser) parseFunction() *frontend.FunctionDecl {
-	p.consume(frontend.TokenFunction, "expected 'function'")
-	nameTok := p.consume(frontend.TokenIdentifier, "expected function name")
+func (p *Parser) parseFunction() *ast.FunctionDecl {
+	p.consume(token.TokenFunction, "expected 'function'")
+	nameTok := p.consume(token.TokenIdentifier, "expected function name")
 
-	fn := &frontend.FunctionDecl{Name: nameTok.Text}
+	fn := &ast.FunctionDecl{Name: nameTok.Text}
 
-	p.consume(frontend.TokenLeftParen, "expected '(' after function name")
+	p.consume(token.TokenLeftParen, "expected '(' after function name")
 
-	if !p.check(frontend.TokenRightParen) {
+	if !p.check(token.TokenRightParen) {
 		for {
-			paramType := p.parseTypeName()
-			paramNameTok := p.consume(frontend.TokenIdentifier, "expected parameter name")
-			fn.Params = append(fn.Params, frontend.Param{
-				TypeName: paramType,
-				Name:     paramNameTok.Text,
+			parseType := p.parseTypeName()
+			paramNameTok := p.consume(token.TokenIdentifier, "expected parameter name")
+			fn.Params = append(fn.Params, ast.Param{
+				Name: paramNameTok.Text,
+				Type: parseType,
 			})
 
-			if !p.match(frontend.TokenComma) {
+			if !p.match(token.TokenComma) {
 				break
 			}
 		}
 	}
-	p.consume(frontend.TokenRightParen, "expected ')' after parameters")
+	p.consume(token.TokenRightParen, "expected ')' after parameters")
 
-	if p.check(frontend.TokenInt) || p.check(frontend.TokenFloat) ||
-		p.check(frontend.TokenString) || p.check(frontend.TokenBool) ||
-		p.check(frontend.TokenChar) || p.check(frontend.TokenVoid) {
+	if p.check(token.TokenInt) || p.check(token.TokenFloat) ||
+		p.check(token.TokenString) || p.check(token.TokenBool) ||
+		p.check(token.TokenChar) || p.check(token.TokenVoid) {
 		fn.ReturnType = p.parseTypeName()
 	} else {
-		fn.ReturnType = "void" // Надо подумать, убрать ли в конце функции тип
+		fn.ReturnType = types.Type{Kind: types.TypeVoid} // Надо подумать, убрать ли в конце функции тип
 		// (UPD: НЕ УБИРАЙ!! В ВАЛИДАТОРЕ ИДЕТ ПРОВЕРКА)
 		// Каждая фукнкция если не задана на тип будет войдовской
 	}
 
 	fn.Body = p.parseBlock()
-	p.match(frontend.TokenNewline) // опциональный \n после функции
+	p.match(token.TokenNewline) // опциональный \n после функции
 
 	return fn
 }
 
-func (p *Parser) parseBlock() *frontend.BlockStmt {
-	p.consume(frontend.TokenLeftBrace, "expected '{' to start block")
-	block := &frontend.BlockStmt{}
+func (p *Parser) parseBlock() *ast.BlockStmt {
+	p.consume(token.TokenLeftBrace, "expected '{' to start block")
+	block := &ast.BlockStmt{}
 
-	for !p.check(frontend.TokenRightBrace) && !p.isAtEnd() {
-		if p.match(frontend.TokenNewline) {
+	for !p.check(token.TokenRightBrace) && !p.isAtEnd() {
+		if p.match(token.TokenNewline) {
 			continue
 		}
 		stmt := p.parseStatement()
@@ -150,33 +153,33 @@ func (p *Parser) parseBlock() *frontend.BlockStmt {
 		}
 	}
 
-	p.consume(frontend.TokenRightBrace, "expected '}' to end block")
-	p.match(frontend.TokenNewline)
+	p.consume(token.TokenRightBrace, "expected '}' to end block")
+	p.match(token.TokenNewline)
 
 	return block
 }
 
-func PrintProgram(prog *frontend.Program) {
+func PrintProgram(prog *ast.Program) {
 	for _, fn := range prog.Functions {
 		printFunction(fn, 0)
 		fmt.Println()
 	}
 }
 
-func printFunction(fn *frontend.FunctionDecl, indent int) {
+func printFunction(fn *ast.FunctionDecl, indent int) {
 	ind := strings.Repeat("  ", indent)
 	fmt.Printf("%sFunction %s(", ind, fn.Name)
 	for i, p := range fn.Params {
 		if i > 0 {
 			fmt.Print(", ")
 		}
-		fmt.Printf("%s %s", p.TypeName, p.Name)
+		fmt.Printf("%s %s", p.Type, p.Name)
 	}
 	fmt.Printf(") %s\n", fn.ReturnType)
 	printBlock(fn.Body, indent+1)
 }
 
-func printBlock(block *frontend.BlockStmt, indent int) {
+func printBlock(block *ast.BlockStmt, indent int) {
 	if block == nil {
 		return
 	}
@@ -187,17 +190,17 @@ func printBlock(block *frontend.BlockStmt, indent int) {
 	}
 }
 
-func printStmt(s frontend.Stmt, indent int) {
+func printStmt(s ast.Stmt, indent int) {
 	ind := strings.Repeat("  ", indent)
 
 	switch st := s.(type) {
-	case *frontend.VarDeclStmt:
-		fmt.Printf("%sVarDecl %s %s\n", ind, st.TypeName, st.Name)
+	case *ast.VarDeclStmt:
+		fmt.Printf("%sVarDecl %s %s\n", ind, st.Type, st.Name)
 		if st.Init != nil {
 			fmt.Printf("%s  Init:\n", ind)
 			printExpr(st.Init, indent+2)
 		}
-	case *frontend.ForStmt:
+	case *ast.ForStmt:
 		fmt.Printf("%sFor:\n", ind)
 		if st.Init != nil {
 			fmt.Printf("%s  Init:\n", ind)
@@ -214,25 +217,25 @@ func printStmt(s frontend.Stmt, indent int) {
 		fmt.Printf("%s  Body:\n", ind)
 		printBlock(st.Body, indent+2)
 
-	case *frontend.AssignStmt:
+	case *ast.AssignStmt:
 		fmt.Printf("%sAssign:\n", ind)
 		fmt.Printf("%s  Target:\n", ind)
 		printExpr(st.Target, indent+2)
 		fmt.Printf("%s  Value:\n", ind)
 		printExpr(st.Value, indent+2)
 
-	case *frontend.ExprStmt:
+	case *ast.ExprStmt:
 		fmt.Printf("%sExprStmt:\n", ind)
 		printExpr(st.Expr, indent+1)
 
-	case *frontend.ReturnStmt:
+	case *ast.ReturnStmt:
 		fmt.Printf("%sReturn\n", ind)
 		if st.Value != nil {
 			fmt.Printf("%s  Value:\n", ind)
 			printExpr(st.Value, indent+2)
 		}
 
-	case *frontend.IfStmt:
+	case *ast.IfStmt:
 		fmt.Printf("%sIf:\n", ind)
 		fmt.Printf("%s  Condition:\n", ind)
 		printExpr(st.Condition, indent+2)
@@ -243,16 +246,16 @@ func printStmt(s frontend.Stmt, indent int) {
 			printBlock(st.ElseBlock, indent+2)
 		}
 
-	case *frontend.WhileStmt:
+	case *ast.WhileStmt:
 		fmt.Printf("%sWhile:\n", ind)
 		fmt.Printf("%s  Condition:\n", ind)
 		printExpr(st.Condition, indent+2)
 		fmt.Printf("%s  Body:\n", ind)
 		printBlock(st.Body, indent+2)
-	case *frontend.BreakStmt:
+	case *ast.BreakStmt:
 		fmt.Printf("%sBreak\n", ind)
 
-	case *frontend.ContinueStmt:
+	case *ast.ContinueStmt:
 		fmt.Printf("%sContinue\n", ind)
 
 	default:
@@ -260,37 +263,29 @@ func printStmt(s frontend.Stmt, indent int) {
 	}
 }
 
-func printExpr(e frontend.Expr, indent int) {
+func printExpr(e ast.Expr, indent int) {
 	ind := strings.Repeat("  ", indent)
 
 	switch ex := e.(type) {
-	case *frontend.NumberExpr:
-		fmt.Printf("%sNumber(%v)\n", ind, ex.Value)
 
-	case *frontend.StringExpr:
-		fmt.Printf("%sString(%q)\n", ind, ex.Value)
+	case *ast.LiteralExpr:
+		fmt.Printf("%sLiteral(%s : %s)\n", ind, ex.Lexeme, ex.Type)
 
-	case *frontend.BoolExpr:
-		fmt.Printf("%sBool(%v)\n", ind, ex.Value)
-
-	case *frontend.NullExpr:
-		fmt.Printf("%sNull\n", ind)
-
-	case *frontend.IdentExpr:
+	case *ast.IdentExpr:
 		fmt.Printf("%sIdent(%s)\n", ind, ex.Name)
 
-	case *frontend.UnaryExpr:
-		fmt.Printf("%sUnary(%s):\n", ind, ex.Op)
+	case *ast.UnaryExpr:
+		fmt.Printf("%sUnary(%v):\n", ind, ex.Op)
 		printExpr(ex.Expr, indent+1)
 
-	case *frontend.BinaryExpr:
-		fmt.Printf("%sBinary(%s):\n", ind, ex.Op)
+	case *ast.BinaryExpr:
+		fmt.Printf("%sBinary(%v):\n", ind, ex.Op)
 		fmt.Printf("%s  Left:\n", ind)
 		printExpr(ex.Left, indent+2)
 		fmt.Printf("%s  Right:\n", ind)
 		printExpr(ex.Right, indent+2)
 
-	case *frontend.CallExpr:
+	case *ast.CallExpr:
 		fmt.Printf("%sCall:\n", ind)
 		fmt.Printf("%s  Callee:\n", ind)
 		printExpr(ex.Callee, indent+2)
@@ -304,21 +299,21 @@ func printExpr(e frontend.Expr, indent int) {
 	}
 }
 
-func printInlineStmt(s frontend.Stmt) {
+func printInlineStmt(s ast.Stmt) {
 	switch st := s.(type) {
-	case *frontend.VarDeclStmt:
-		fmt.Printf("%s %s", st.Name, st.TypeName)
+	case *ast.VarDeclStmt:
+		fmt.Printf("%s %s", st.Name, st.Type)
 		if st.Init != nil {
 			fmt.Print(" = ")
 			printInlineExpr(st.Init)
 		}
 
-	case *frontend.AssignStmt:
+	case *ast.AssignStmt:
 		printInlineExpr(st.Target)
 		fmt.Print(" = ")
 		printInlineExpr(st.Value)
 
-	case *frontend.ExprStmt:
+	case *ast.ExprStmt:
 		printInlineExpr(st.Expr)
 
 	default:
@@ -326,33 +321,25 @@ func printInlineStmt(s frontend.Stmt) {
 	}
 }
 
-func printInlineExpr(e frontend.Expr) {
+func printInlineExpr(e ast.Expr) {
 	switch ex := e.(type) {
-	case *frontend.NumberExpr:
-		fmt.Printf("%v", ex.Value)
 
-	case *frontend.StringExpr:
-		fmt.Printf("%q", ex.Value)
+	case *ast.LiteralExpr:
+		fmt.Print(ex.Lexeme)
 
-	case *frontend.BoolExpr:
-		fmt.Printf("%v", ex.Value)
-
-	case *frontend.NullExpr:
-		fmt.Print("null")
-
-	case *frontend.IdentExpr:
+	case *ast.IdentExpr:
 		fmt.Printf("%s", ex.Name)
 
-	case *frontend.UnaryExpr:
-		fmt.Printf("%s", ex.Op)
+	case *ast.UnaryExpr:
+		fmt.Printf("%v", ex.Op)
 		printInlineExpr(ex.Expr)
 
-	case *frontend.BinaryExpr:
+	case *ast.BinaryExpr:
 		printInlineExpr(ex.Left)
-		fmt.Printf(" %s ", ex.Op)
+		fmt.Printf(" %v ", ex.Op)
 		printInlineExpr(ex.Right)
 
-	case *frontend.CallExpr:
+	case *ast.CallExpr:
 		printInlineExpr(ex.Callee)
 		fmt.Print("(")
 		for i, arg := range ex.Args {
