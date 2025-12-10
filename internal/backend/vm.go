@@ -1,13 +1,20 @@
-﻿package backend
+package backend
 
 import (
 	"fmt"
-	"github.com/ChernykhITMO/compiler/internal/bytecode"
 	"math"
+
+	"github.com/ChernykhITMO/compiler/internal/bytecode"
 )
 
+type rootSet struct {
+	locals *[]bytecode.Value
+	stack  *[]bytecode.Value
+}
 type VM struct {
-	mod *bytecode.Module
+	mod   *bytecode.Module
+	heap  bytecode.Heap
+	roots []rootSet
 }
 
 func NewVM(mod *bytecode.Module) *VM {
@@ -33,6 +40,14 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 	copy(locals, args)
 
 	stack := make([]bytecode.Value, 0, 256)
+
+	vm.roots = append(vm.roots, rootSet{
+		locals: &locals,
+		stack:  &stack,
+	})
+	defer func() {
+		vm.roots = vm.roots[:len(vm.roots)-1]
+	}()
 
 	ip := 0
 
@@ -234,6 +249,59 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 				return bytecode.Value{Kind: bytecode.ValNull}, nil
 			}
 			return stack[len(stack)-1], nil
+
+		case bytecode.OpArrayNew:
+			lenVal := pop()
+			if lenVal.Kind != bytecode.ValInt {
+				return bytecode.Value{}, fmt.Errorf("array new: length must be int")
+			}
+			if lenVal.I < 0 {
+				return bytecode.Value{}, fmt.Errorf("array new: length must be >= 0")
+			}
+			n := int(lenVal.I)
+
+			obj := vm.newObject(bytecode.ObjArray)
+			obj.Items = make([]bytecode.Value, n)
+
+			push(bytecode.Value{
+				Kind: bytecode.ValObject,
+				Obj:  obj,
+			})
+
+		case bytecode.OpArrayGet:
+			idxVal := pop()
+			arrVal := pop()
+
+			if arrVal.Kind != bytecode.ValObject || arrVal.Obj == nil || arrVal.Obj.Type != bytecode.ObjArray {
+				return bytecode.Value{}, fmt.Errorf("array get: value is not array")
+			}
+			if idxVal.Kind != bytecode.ValInt {
+				return bytecode.Value{}, fmt.Errorf("array get: index must be int")
+			}
+			idx := int(idxVal.I)
+			if idx < 0 || idx >= len(arrVal.Obj.Items) {
+				return bytecode.Value{}, fmt.Errorf("array get: index %d out of range [0,%d)", idx, len(arrVal.Obj.Items))
+			}
+
+			push(arrVal.Obj.Items[idx])
+
+		case bytecode.OpArraySet:
+			val := pop()
+			idxVal := pop()
+			arrVal := pop()
+
+			if arrVal.Kind != bytecode.ValObject || arrVal.Obj == nil || arrVal.Obj.Type != bytecode.ObjArray {
+				return bytecode.Value{}, fmt.Errorf("array set: value is not array")
+			}
+			if idxVal.Kind != bytecode.ValInt {
+				return bytecode.Value{}, fmt.Errorf("array set: index must be int")
+			}
+			idx := int(idxVal.I)
+			if idx < 0 || idx >= len(arrVal.Obj.Items) {
+				return bytecode.Value{}, fmt.Errorf("array set: index %d out of range [0,%d)", idx, len(arrVal.Obj.Items))
+			}
+
+			arrVal.Obj.Items[idx] = val
 
 		default:
 			return bytecode.Value{}, fmt.Errorf("unknown opcode %d", op)

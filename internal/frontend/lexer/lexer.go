@@ -14,7 +14,8 @@ type Lexer struct {
 func NewLexer(src string) *Lexer {
 	return &Lexer{
 		code:     src,
-		position: 0}
+		position: 0,
+	}
 }
 
 func (l *Lexer) currentChar() byte {
@@ -148,6 +149,8 @@ func (l *Lexer) readIdentifier() token.Token {
 		return token.Token{Type: token.TokenBreak, Text: ident, Pos: start}
 	case "continue":
 		return token.Token{Type: token.TokenContinue, Text: ident, Pos: start}
+	case "new":
+		return token.Token{Type: token.TokenNew, Text: ident, Pos: start}
 	default:
 		return token.Token{Type: token.TokenIdentifier, Text: ident, Pos: start}
 	}

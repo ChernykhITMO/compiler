@@ -1,6 +1,10 @@
 package types
 
-import "github.com/ChernykhITMO/compiler/internal/frontend/token"
+import (
+	"fmt"
+
+	"github.com/ChernykhITMO/compiler/internal/frontend/token"
+)
 
 type BasicType int
 
@@ -13,10 +17,12 @@ const (
 	TypeChar
 	TypeVoid
 	TypeNull
+	TypeArray
 )
 
 type Type struct {
 	Kind BasicType
+	Elem *Type
 }
 
 func (t Type) String() string {
@@ -35,6 +41,11 @@ func (t Type) String() string {
 		return "void"
 	case TypeNull:
 		return "null"
+	case TypeArray:
+		if t.Elem == nil {
+			return "[]"
+		}
+		return fmt.Sprintf("%s[]", t.Elem.String())
 	default:
 		return "invalid"
 	}

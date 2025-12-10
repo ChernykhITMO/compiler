@@ -1,4 +1,4 @@
-﻿package parser
+package parser
 
 import (
 	"fmt"
@@ -164,6 +164,13 @@ func (p *Parser) parseCall() ast.Expr {
 				Callee: expr,
 				Args:   args,
 			}
+		} else if p.match(token.TokenLeftBracket) {
+			indexExpr := p.parseExpression()
+			p.consume(token.TokenRightBracket, "expected ']' after index")
+			expr = &ast.IndexExpr{
+				Array: expr,
+				Index: indexExpr,
+			}
 		} else {
 			break
 		}
@@ -211,6 +218,18 @@ func (p *Parser) parsePrimary() ast.Expr {
 			Lexeme: t.Text,
 			Token:  t.Type,
 			Type:   types.Type{Kind: types.TypeNull},
+		}
+	}
+
+	if p.match(token.TokenNew) {
+		elemType := p.parseBaseTypeName()
+		p.consume(token.TokenLeftBracket, "expected '[' after type in new expression")
+		lenExpr := p.parseExpression()
+		p.consume(token.TokenRightBracket, "expected ']' after length expression")
+
+		return &ast.NewArrayExpr{
+			ElementType: elemType,
+			Length:      lenExpr,
 		}
 	}
 
