@@ -20,6 +20,8 @@ const (
 	ScenarioFactorial Scenario = "factorial"
 	ScenarioSort      Scenario = "sort"
 	ScenarioPrimes    Scenario = "primes"
+
+	ScenarioForBreakContinue Scenario = "forBreakContinue"
 )
 
 func getScenarioSource(s Scenario) string {
@@ -32,13 +34,15 @@ func getScenarioSource(s Scenario) string {
 		return srcSort
 	case ScenarioPrimes:
 		return srcPrimes
+	case ScenarioForBreakContinue:
+		return forBreakContinue
 	default:
 		log.Fatalf("unknown scenario %q", s)
 		return ""
 	}
 }
 
-const currentScenario = ScenarioSort
+const currentScenario = ScenarioForBreakContinue
 
 func main() {
 	src := getScenarioSource(currentScenario)
@@ -126,6 +130,23 @@ func countStmtBlock(block *ast.BlockStmt) int {
 	}
 	return total
 }
+
+const forBreakContinue = `
+function test() int{
+	int a = 0
+	int b = 5
+	while (a<10){
+		a = a + 1
+		if a == 9{
+			continue
+		}
+	}
+	return a
+}
+
+function main() void{
+}
+`
 
 // Стресс-тест gc
 const srcGC = `
