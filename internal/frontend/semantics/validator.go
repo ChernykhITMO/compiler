@@ -170,6 +170,13 @@ func (v *ASTValidator) validateExpression(expr ast.Expr, context string) {
 			v.validateExpression(arg, context)
 		}
 
+	case *ast.IndexExpr:
+		v.validateExpression(e.Array, context)
+		v.validateExpression(e.Index, context)
+
+	case *ast.NewArrayExpr:
+		v.validateExpression(e.Length, context)
+
 	case *ast.IdentExpr, *ast.LiteralExpr:
 		return
 	}

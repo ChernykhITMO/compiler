@@ -1,12 +1,13 @@
-﻿package backend
+package backend
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/ChernykhITMO/compiler/internal/bytecode"
 	"github.com/ChernykhITMO/compiler/internal/frontend/ast"
 	"github.com/ChernykhITMO/compiler/internal/frontend/token"
 	"github.com/ChernykhITMO/compiler/internal/frontend/types"
-	"strconv"
 )
 
 type localVar struct {
@@ -50,6 +51,8 @@ func mapTypeName(t types.Type) bytecode.TypeKind {
 		return bytecode.TypeChar
 	case types.TypeVoid:
 		return bytecode.TypeVoid
+	case types.TypeArray:
+		return bytecode.TypeArray
 	default:
 		return bytecode.TypeInvalid
 	}
@@ -184,18 +187,25 @@ func (c *Compiler) compileVarDecl(s *ast.VarDeclStmt) {
 func (c *Compiler) compileAssign(s *ast.AssignStmt) {
 	ch := c.chunk()
 
-	c.compileExpr(s.Value)
+	switch target := s.Target.(type) {
+	case *ast.IdentExpr:
+		c.compileExpr(s.Value)
 
-	ident, ok := s.Target.(*ast.IdentExpr)
-	if !ok {
-		panic("assignment to non-identifier not supported")
-	}
+		if slot, ok := c.resolveLocal(target.Name); ok {
+			ch.Write(bytecode.OpStoreLocal, 0)
+			ch.WriteByte(byte(slot), 0)
+		} else {
+			panic("unknown variable " + target.Name)
+		}
 
-	if slot, ok := c.resolveLocal(ident.Name); ok {
-		ch.Write(bytecode.OpStoreLocal, 0)
-		ch.WriteByte(byte(slot), 0)
-	} else {
-		panic("unknown variable " + ident.Name)
+	case *ast.IndexExpr:
+		c.compileExpr(target.Array)
+		c.compileExpr(target.Index)
+		c.compileExpr(s.Value)
+		ch.Write(bytecode.OpArraySet, 0)
+
+	default:
+		panic("assignment to unsupported target")
 	}
 }
 
@@ -267,7 +277,6 @@ func (c *Compiler) compileWhile(s *ast.WhileStmt) {
 }
 
 func (c *Compiler) compileExpr(e ast.Expr) {
-
 	switch ex := e.(type) {
 	case *ast.IdentExpr:
 		c.compileIdent(ex)
@@ -279,8 +288,16 @@ func (c *Compiler) compileExpr(e ast.Expr) {
 		c.compileBinary(ex)
 	case *ast.CallExpr:
 		c.compileCall(ex)
+	case *ast.IndexExpr:
+		c.compileExpr(ex.Array)
+		c.compileExpr(ex.Index)
+		c.chunk().Write(bytecode.OpArrayGet, 0)
+	case *ast.NewArrayExpr:
+		c.compileExpr(ex.Length)
+		c.chunk().Write(bytecode.OpArrayNew, 0)
+	default:
+		panic(fmt.Sprintf("unknown expr %T", ex))
 	}
-
 }
 
 func (c *Compiler) compileLiteral(l *ast.LiteralExpr) {

@@ -22,7 +22,7 @@ const (
 	TokenReturn
 	TokenBreak
 	TokenContinue
-
+	TokenNew
 	TokenNull
 	TokenTrue
 	TokenFalse

@@ -137,6 +137,13 @@ func (c *Checker) checkExpression(expr ast.Expr) {
 	case *ast.UnaryExpr:
 		c.checkExpression(e.Expr)
 
+	case *ast.IndexExpr:
+		c.checkExpression(e.Array)
+		c.checkExpression(e.Index)
+
+	case *ast.NewArrayExpr:
+		c.checkExpression(e.Length)
+
 	case *ast.LiteralExpr:
 	}
 }

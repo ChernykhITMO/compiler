@@ -1,4 +1,4 @@
-﻿package ast
+package ast
 
 import (
 	"github.com/ChernykhITMO/compiler/internal/frontend/token"
@@ -35,6 +35,18 @@ type FunctionDecl struct {
 type Param struct {
 	Name string
 	Type types.Type
+}
+
+type IndexExpr struct {
+	exprBase
+	Array Expr
+	Index Expr
+}
+
+type NewArrayExpr struct {
+	exprBase
+	ElementType types.Type
+	Length      Expr
 }
 
 type IdentExpr struct {

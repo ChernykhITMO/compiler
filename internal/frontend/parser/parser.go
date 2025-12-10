@@ -65,6 +65,37 @@ func (p *Parser) consume(tt token.TokenType, msg string) token.Token {
 }
 
 func (p *Parser) parseTypeName() types.Type {
+	var base types.Type
+	switch {
+	case p.match(token.TokenInt):
+		base = types.TypeFromToken(token.TokenInt)
+	case p.match(token.TokenFloat):
+		base = types.TypeFromToken(token.TokenFloat)
+	case p.match(token.TokenString):
+		base = types.TypeFromToken(token.TokenString)
+	case p.match(token.TokenBool):
+		base = types.TypeFromToken(token.TokenBool)
+	case p.match(token.TokenChar):
+		base = types.TypeFromToken(token.TokenChar)
+	case p.match(token.TokenVoid):
+		base = types.TypeFromToken(token.TokenVoid)
+	default:
+		cur := p.current()
+		panic(fmt.Errorf("parse error at pos %d: expected types name", cur.Pos))
+	}
+
+	for p.match(token.TokenLeftBracket) {
+		p.consume(token.TokenRightBracket, "expected ']' after '[' in array type")
+		base = types.Type{
+			Kind: types.TypeArray,
+			Elem: &base,
+		}
+	}
+
+	return base
+}
+
+func (p *Parser) parseBaseTypeName() types.Type {
 	switch {
 	case p.match(token.TokenInt):
 		return types.TypeFromToken(token.TokenInt)
@@ -80,7 +111,7 @@ func (p *Parser) parseTypeName() types.Type {
 		return types.TypeFromToken(token.TokenVoid)
 	default:
 		cur := p.current()
-		panic(fmt.Errorf("parse error at pos %d: expected types name", cur.Pos))
+		panic(fmt.Errorf("parse error at pos %d: expected type name", cur.Pos))
 	}
 }
 
@@ -294,6 +325,18 @@ func printExpr(e ast.Expr, indent int) {
 			printExpr(a, indent+2)
 		}
 
+	case *ast.IndexExpr:
+		fmt.Printf("%sIndex:\n", ind)
+		fmt.Printf("%s  Array:\n", ind)
+		printExpr(ex.Array, indent+2)
+		fmt.Printf("%s  Index:\n", ind)
+		printExpr(ex.Index, indent+2)
+
+	case *ast.NewArrayExpr:
+		fmt.Printf("%sNewArray(%s):\n", ind, ex.ElementType.String())
+		fmt.Printf("%s  Length:\n", ind)
+		printExpr(ex.Length, indent+2)
+
 	default:
 		fmt.Printf("%s<unknown expr %T>\n", ind, ex)
 	}
@@ -349,6 +392,17 @@ func printInlineExpr(e ast.Expr) {
 			printInlineExpr(arg)
 		}
 		fmt.Print(")")
+
+	case *ast.IndexExpr:
+		printInlineExpr(ex.Array)
+		fmt.Print("[")
+		printInlineExpr(ex.Index)
+		fmt.Print("]")
+
+	case *ast.NewArrayExpr:
+		fmt.Printf("new %s[", ex.ElementType.String())
+		printInlineExpr(ex.Length)
+		fmt.Print("]")
 
 	default:
 		fmt.Printf("<expr %T>", ex)

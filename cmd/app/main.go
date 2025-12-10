@@ -2,35 +2,46 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"math"
+
 	"github.com/ChernykhITMO/compiler/internal/backend"
 	"github.com/ChernykhITMO/compiler/internal/bytecode"
 	"github.com/ChernykhITMO/compiler/internal/frontend/ast"
 	"github.com/ChernykhITMO/compiler/internal/frontend/lexer"
 	"github.com/ChernykhITMO/compiler/internal/frontend/parser"
 	"github.com/ChernykhITMO/compiler/internal/frontend/semantics"
-	"log"
-	"math"
 )
 
+type Scenario string
+
+const (
+	ScenarioGC        Scenario = "gc"
+	ScenarioFactorial Scenario = "factorial"
+	ScenarioSort      Scenario = "sort"
+	ScenarioPrimes    Scenario = "primes"
+)
+
+func getScenarioSource(s Scenario) string {
+	switch s {
+	case ScenarioGC:
+		return srcGC
+	case ScenarioFactorial:
+		return srcFactorial
+	case ScenarioSort:
+		return srcSort
+	case ScenarioPrimes:
+		return srcPrimes
+	default:
+		log.Fatalf("unknown scenario %q", s)
+		return ""
+	}
+}
+
+const currentScenario = ScenarioSort
+
 func main() {
-	src := `
-function main() void {
-}
-
-function test() int{
-	int a = fac(20)
-	return a
-}
-
-function fac(int a) int{
-	if a == 1 {
-		return a
-	}
-	else {
-		return a * fac(a - 1)
-	}
-}
-`
+	src := getScenarioSource(currentScenario)
 
 	// 1) лексер + парсер
 	lexer := lexer.NewLexer(src)
@@ -115,3 +126,129 @@ func countStmtBlock(block *ast.BlockStmt) int {
 	}
 	return total
 }
+
+// Стресс-тест gc
+const srcGC = `
+function main() void {
+    int i = 0
+    while (i < 100000) {
+        int[] arr
+        arr = new int[1000]
+        arr[0] = i
+        i = i + 1
+    }
+}
+
+function test() int {
+    main()
+    return 0
+}
+`
+
+// факториал
+const srcFactorial = `
+function main() void {
+}
+
+function fac(int n) int {
+    if (n == 0) {
+        return 1
+    }
+    else {
+        return n * fac(n - 1)
+    }
+}
+
+function test() int {
+    int x = fac(20)
+    return x
+}
+`
+
+// сортировка
+const srcSort = `
+function main() void {
+}
+
+function bubbleSort(int[] arr, int n) void {
+    int i = 0
+    while (i < n) {
+        int j = 0
+        while (j < n - 1) {
+            if (arr[j] > arr[j + 1]) {
+                int tmp = arr[j]
+                arr[j] = arr[j + 1]
+                arr[j + 1] = tmp
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+function test() int {
+    int n = 10000
+    int[] arr
+    arr = new int[n]
+
+    int i = 0
+    while (i < n) {
+        arr[i] = n - i
+        i = i + 1
+    }
+
+    bubbleSort(arr, n)
+
+    if (arr[0] == 1 && arr[n - 1] == n) {
+        return 1
+    }
+    else {
+        return 0
+    }
+}
+`
+
+// Простые числа
+const srcPrimes = `
+function main() void {
+}
+
+function test() int {
+    int N = 100000
+
+    bool[] isPrime
+    isPrime = new bool[N + 1]
+
+    int i = 0
+    while (i <= N) {
+        isPrime[i] = true
+        i = i + 1
+    }
+
+    isPrime[0] = false
+    isPrime[1] = false
+
+    int p = 2
+    while (p * p <= N) {
+        if (isPrime[p]) {
+            int multiple = p * p
+            while (multiple <= N) {
+                isPrime[multiple] = false
+                multiple = multiple + p
+            }
+        }
+        p = p + 1
+    }
+
+    int count = 0
+    int k = 2
+    while (k <= N) {
+        if (isPrime[k]) {
+            count = count + 1
+        }
+        k = k + 1
+    }
+
+    return count
+}
+`

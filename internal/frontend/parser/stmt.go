@@ -1,4 +1,4 @@
-﻿package parser
+package parser
 
 import (
 	"github.com/ChernykhITMO/compiler/internal/frontend/ast"
@@ -29,27 +29,27 @@ func (p *Parser) parseStatement() ast.Stmt {
 
 	if p.check(token.TokenInt) || p.check(token.TokenFloat) ||
 		p.check(token.TokenString) || p.check(token.TokenBool) ||
-		p.check(token.TokenChar) {
+		p.check(token.TokenChar) || p.check(token.TokenVoid) {
 		return p.parseVarDeclOrExprStmt()
 	}
 
-	if p.check(token.TokenIdentifier) {
-		nextType := token.TokenEnd
-		if p.pos+1 < len(p.tokens) {
-			nextType = p.tokens[p.pos+1].Type
-		}
-		if nextType == token.TokenAssign {
-			nameTok := p.consume(token.TokenIdentifier, "expected identifier")
-			p.consume(token.TokenAssign, "expected '='")
-			value := p.parseExpression()
-			p.match(token.TokenNewline)
+	expr := p.parseExpression()
 
-			target := &ast.IdentExpr{Name: nameTok.Text}
-			return &ast.AssignStmt{Target: target, Value: value}
+	if p.match(token.TokenAssign) {
+		value := p.parseExpression()
+		p.match(token.TokenNewline)
+
+		switch expr.(type) {
+		case *ast.IdentExpr, *ast.IndexExpr:
+			return &ast.AssignStmt{
+				Target: expr,
+				Value:  value,
+			}
+		default:
+			panic("invalid assignment target")
 		}
 	}
 
-	expr := p.parseExpression()
 	p.match(token.TokenNewline)
 	return &ast.ExprStmt{Expr: expr}
 }

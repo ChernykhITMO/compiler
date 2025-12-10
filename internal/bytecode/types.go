@@ -1,4 +1,4 @@
-﻿package bytecode
+package bytecode
 
 type TypeKind byte
 
@@ -11,6 +11,7 @@ const (
 	TypeChar
 	TypeVoid
 	TypeNull
+	TypeArray
 )
 
 type ValueKind byte
@@ -22,7 +23,28 @@ const (
 	ValString
 	ValChar
 	ValNull
+	ValObject
 )
+
+type ObjectType byte
+
+const (
+	ObjArray ObjectType = iota
+	// потом можно добавить ObjString, ObjMap и т.д. (если будет желание)
+)
+
+type Object struct {
+	Mark  bool
+	Type  ObjectType
+	Next  *Object // односвязный список всех объектов в куче
+	Items []Value // для массивов: элементы
+}
+
+type Heap struct {
+	Head       *Object // голова списка объектов
+	NumObjects int     // сколько сейчас объектов
+	MaxObjects int     // порог, при котором запускаем GC
+}
 
 type Value struct {
 	Kind ValueKind
@@ -31,6 +53,7 @@ type Value struct {
 	B    bool
 	S    string
 	C    byte
+	Obj  *Object
 }
 
 type OpCode byte
@@ -62,4 +85,8 @@ const (
 
 	OpCall   // вызов функции
 	OpReturn // вернуть из функции
+
+	OpArrayNew // выделить память под массив
+	OpArrayGet // получит значение по индексу
+	OpArraySet // присовить значение по индексу
 )
