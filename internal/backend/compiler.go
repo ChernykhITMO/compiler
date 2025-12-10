@@ -20,6 +20,9 @@ type Compiler struct {
 	mod    *bytecode.Module
 	fn     *bytecode.FunctionInfo
 	locals []localVar
+
+	breakStack    [][]int
+	continueStack [][]int
 }
 
 func NewCompiler() *Compiler {
@@ -161,6 +164,10 @@ func (c *Compiler) compileStmt(s ast.Stmt) {
 		c.compileWhile(st)
 	case *ast.ForStmt:
 		c.compileFor(st)
+	case *ast.BreakStmt:
+		c.compileBreak(st)
+	case *ast.ContinueStmt:
+		c.compileContinue(st)
 	default:
 		panic(fmt.Sprintf("unknown stmt %T", st))
 	}
@@ -257,6 +264,7 @@ func (c *Compiler) compileWhile(s *ast.WhileStmt) {
 	ch := c.chunk()
 
 	loopStart := len(ch.Code)
+	c.beginLoop()
 
 	c.compileExpr(s.Condition)
 
@@ -271,9 +279,13 @@ func (c *Compiler) compileWhile(s *ast.WhileStmt) {
 	ch.Write(bytecode.OpJump, 0)
 	ch.WriteUint16(uint16(loopStart), 0)
 
-	afterLoop := len(ch.Code)
-	ch.PatchUint16(exitJump, uint16(afterLoop))
+	exitLabel := len(ch.Code)
+	ch.PatchUint16(exitJump, uint16(exitLabel))
 	ch.Write(bytecode.OpPop, 0)
+
+	afterLoop := len(ch.Code)
+	c.endLoop(loopStart, afterLoop)
+
 }
 
 func (c *Compiler) compileExpr(e ast.Expr) {
@@ -522,6 +534,7 @@ func (c *Compiler) compileFor(s *ast.ForStmt) {
 	}
 
 	loopStart := len(ch.Code)
+	c.beginLoop()
 
 	var exitJumpPos int
 	hasCond := s.Condition != nil
@@ -538,7 +551,9 @@ func (c *Compiler) compileFor(s *ast.ForStmt) {
 
 	c.compileBlock(s.Body)
 
+	incrementTarget := loopStart
 	if s.Increment != nil {
+		incrementTarget = len(ch.Code)
 		c.compileStmt(s.Increment)
 	}
 
@@ -546,8 +561,62 @@ func (c *Compiler) compileFor(s *ast.ForStmt) {
 	ch.WriteUint16(uint16(loopStart), 0)
 
 	if hasCond {
-		afterLoop := len(ch.Code)
-		ch.PatchUint16(exitJumpPos, uint16(afterLoop))
+		exitLable := len(ch.Code)
+		ch.PatchUint16(exitJumpPos, uint16(exitLable))
+
 		ch.Write(bytecode.OpPop, 0)
+
+		afterLoop := len(ch.Code)
+		c.endLoop(incrementTarget, afterLoop)
+	} else {
+		afterLoop := len(ch.Code)
+		c.endLoop(incrementTarget, afterLoop)
 	}
+}
+
+func (c *Compiler) beginLoop() {
+	c.breakStack = append(c.breakStack, nil)
+	c.continueStack = append(c.continueStack, nil)
+}
+
+func (c *Compiler) endLoop(continueTarget, breakTarget int) {
+	ch := c.chunk()
+
+	bi := len(c.breakStack) - 1
+	for _, pos := range c.breakStack[bi] {
+		ch.PatchUint16(pos, uint16(breakTarget))
+	}
+	c.breakStack = c.breakStack[:bi]
+
+	ci := len(c.continueStack) - 1
+	for _, pos := range c.continueStack[ci] {
+		ch.PatchUint16(pos, uint16(continueTarget))
+	}
+	c.continueStack = c.continueStack[:ci]
+}
+
+func (c *Compiler) compileBreak(_ *ast.BreakStmt) {
+	if len(c.breakStack) == 0 {
+		panic("break outside of loop")
+	}
+	ch := c.chunk()
+	ch.Write(bytecode.OpJump, 0)
+	pos := len(ch.Code)
+	ch.WriteUint16(0, 0)
+
+	i := len(c.breakStack) - 1
+	c.breakStack[i] = append(c.breakStack[i], pos)
+}
+
+func (c *Compiler) compileContinue(_ *ast.ContinueStmt) {
+	if len(c.continueStack) == 0 {
+		panic("continue outside of loop")
+	}
+	ch := c.chunk()
+	ch.Write(bytecode.OpJump, 0)
+	pos := len(ch.Code)
+	ch.WriteUint16(0, 0)
+
+	i := len(c.continueStack) - 1
+	c.continueStack[i] = append(c.continueStack[i], pos)
 }

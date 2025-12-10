@@ -309,7 +309,6 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 	}
 }
 
-// TODO подумать над тем что делаем только bool или что то еще
 func (vm *VM) isTruthy(v bytecode.Value) bool {
 	switch v.Kind {
 	case bytecode.ValBool:
