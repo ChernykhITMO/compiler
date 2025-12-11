@@ -1,0 +1,41 @@
+function main() void {
+}
+
+function test() int {
+    int N = 100000
+
+    bool[] isPrime
+    isPrime = new bool[N + 1]
+
+    int i = 0
+    while (i <= N) {
+        isPrime[i] = true
+        i = i + 1
+    }
+
+    isPrime[0] = false
+    isPrime[1] = false
+
+    int p = 2
+    while (p * p <= N) {
+        if (isPrime[p]) {
+            int multiple = p * p
+            while (multiple <= N) {
+                isPrime[multiple] = false
+                multiple = multiple + p
+            }
+        }
+        p = p + 1
+    }
+
+    int count = 0
+    int k = 2
+    while (k <= N) {
+        if (isPrime[k]) {
+            count = count + 1
+        }
+        k = k + 1
+    }
+
+    return count
+}

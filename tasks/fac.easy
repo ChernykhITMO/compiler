@@ -1,0 +1,16 @@
+function main() void {
+}
+
+function fac(int n) int {
+    if (n == 0) {
+        return 1
+    }
+    else {
+        return n * fac(n - 1)
+    }
+}
+
+function test() int {
+    int x = fac(20)
+    return x
+}

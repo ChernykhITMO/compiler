@@ -1,0 +1,39 @@
+function main() void {
+}
+
+function bubbleSort(int[] arr, int n) void {
+    int i = 0
+    while (i < n) {
+        int j = 0
+        while (j < n - 1) {
+            if (arr[j] > arr[j + 1]) {
+                int tmp = arr[j]
+                arr[j] = arr[j + 1]
+                arr[j + 1] = tmp
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+function test() int {
+    int n = 10000
+    int[] arr
+    arr = new int[n]
+
+    int i = 0
+    while (i < n) {
+        arr[i] = n - i
+        i = i + 1
+    }
+
+    bubbleSort(arr, n)
+
+    if (arr[0] == 1 && arr[n - 1] == n) {
+        return 1
+    }
+    else {
+        return 0
+    }
+}
