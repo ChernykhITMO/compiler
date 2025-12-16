@@ -133,10 +133,10 @@ func (c *Compiler) compileFunction(fn *ast.FunctionDecl) error {
 	c.compileBlock(fn.Body)
 
 	ch := c.chunk()
-	ch.Write(bytecode.OpConst, 0)
+	ch.Write(bytecode.OpConst)
 	idx := ch.AddConstant(bytecode.Value{Kind: bytecode.ValNull})
-	ch.WriteUint16(uint16(idx), 0)
-	ch.Write(bytecode.OpReturn, 0)
+	ch.WriteUint16(uint16(idx))
+	ch.Write(bytecode.OpReturn)
 
 	return nil
 }
@@ -155,7 +155,7 @@ func (c *Compiler) compileStmt(s ast.Stmt) {
 		c.compileAssign(st)
 	case *ast.ExprStmt:
 		c.compileExpr(st.Expr)
-		c.chunk().Write(bytecode.OpPop, 0)
+		c.chunk().Write(bytecode.OpPop)
 	case *ast.ReturnStmt:
 		c.compileReturn(st)
 	case *ast.IfStmt:
@@ -180,15 +180,15 @@ func (c *Compiler) compileVarDecl(s *ast.VarDeclStmt) {
 	if s.Init != nil {
 		c.compileExpr(s.Init)
 	} else {
-		ch.Write(bytecode.OpConst, 0)
+		ch.Write(bytecode.OpConst)
 		idx := ch.AddConstant(bytecode.Value{Kind: bytecode.ValNull})
-		ch.WriteUint16(uint16(idx), 0)
+		ch.WriteUint16(uint16(idx))
 	}
 
 	slot := c.addLocal(s.Name, typ)
 
-	ch.Write(bytecode.OpStoreLocal, 0)
-	ch.WriteByte(byte(slot), 0)
+	ch.Write(bytecode.OpStoreLocal)
+	ch.WriteByte(byte(slot))
 }
 
 func (c *Compiler) compileAssign(s *ast.AssignStmt) {
@@ -199,8 +199,8 @@ func (c *Compiler) compileAssign(s *ast.AssignStmt) {
 		c.compileExpr(s.Value)
 
 		if slot, ok := c.resolveLocal(target.Name); ok {
-			ch.Write(bytecode.OpStoreLocal, 0)
-			ch.WriteByte(byte(slot), 0)
+			ch.Write(bytecode.OpStoreLocal)
+			ch.WriteByte(byte(slot))
 		} else {
 			panic("unknown variable " + target.Name)
 		}
@@ -209,7 +209,7 @@ func (c *Compiler) compileAssign(s *ast.AssignStmt) {
 		c.compileExpr(target.Array)
 		c.compileExpr(target.Index)
 		c.compileExpr(s.Value)
-		ch.Write(bytecode.OpArraySet, 0)
+		ch.Write(bytecode.OpArraySet)
 
 	default:
 		panic("assignment to unsupported target")
@@ -223,11 +223,11 @@ func (c *Compiler) compileReturn(s *ast.ReturnStmt) {
 		c.compileExpr(s.Value)
 	} else {
 
-		ch.Write(bytecode.OpConst, 0)
+		ch.Write(bytecode.OpConst)
 		idx := ch.AddConstant(bytecode.Value{Kind: bytecode.ValNull})
-		ch.WriteUint16(uint16(idx), 0)
+		ch.WriteUint16(uint16(idx))
 	}
-	ch.Write(bytecode.OpReturn, 0)
+	ch.Write(bytecode.OpReturn)
 }
 
 func (c *Compiler) compileIf(s *ast.IfStmt) {
@@ -235,22 +235,22 @@ func (c *Compiler) compileIf(s *ast.IfStmt) {
 
 	c.compileExpr(s.Condition)
 
-	ch.Write(bytecode.OpJumpIfFalse, 0) // если false, перескакиваем в else
-	jumpToElse := len(ch.Code)          // индекс где будут лежать аргументы этой инструкции
-	ch.WriteUint16(0, 0)                //заглушка
+	ch.Write(bytecode.OpJumpIfFalse) // если false, перескакиваем в else
+	jumpToElse := len(ch.Code)       // индекс где будут лежать аргументы этой инструкции
+	ch.WriteUint16(0)                //заглушка
 
-	ch.Write(bytecode.OpPop, 0) // убираем условие, если true
+	ch.Write(bytecode.OpPop) // убираем условие, если true
 
 	c.compileBlock(s.ThenBlock)
 
-	ch.Write(bytecode.OpJump, 0)  // перескачить else при true
+	ch.Write(bytecode.OpJump)     // перескачить else при true
 	jumpAfterElse := len(ch.Code) // индекс где будут лежать аргументы этой инструкции
-	ch.WriteUint16(0, 0)
+	ch.WriteUint16(0)
 
 	elsePos := len(ch.Code) //здесь начинается else часть
 	ch.PatchUint16(jumpToElse, uint16(elsePos))
 
-	ch.Write(bytecode.OpPop, 0)
+	ch.Write(bytecode.OpPop)
 
 	if s.ElseBlock != nil {
 		c.compileBlock(s.ElseBlock)
@@ -268,20 +268,20 @@ func (c *Compiler) compileWhile(s *ast.WhileStmt) {
 
 	c.compileExpr(s.Condition)
 
-	ch.Write(bytecode.OpJumpIfFalse, 0)
+	ch.Write(bytecode.OpJumpIfFalse)
 	exitJump := len(ch.Code)
-	ch.WriteUint16(0, 0)
+	ch.WriteUint16(0)
 
-	ch.Write(bytecode.OpPop, 0)
+	ch.Write(bytecode.OpPop)
 
 	c.compileBlock(s.Body)
 
-	ch.Write(bytecode.OpJump, 0)
-	ch.WriteUint16(uint16(loopStart), 0)
+	ch.Write(bytecode.OpJump)
+	ch.WriteUint16(uint16(loopStart))
 
 	exitLabel := len(ch.Code)
 	ch.PatchUint16(exitJump, uint16(exitLabel))
-	ch.Write(bytecode.OpPop, 0)
+	ch.Write(bytecode.OpPop)
 
 	afterLoop := len(ch.Code)
 	c.endLoop(loopStart, afterLoop)
@@ -303,10 +303,10 @@ func (c *Compiler) compileExpr(e ast.Expr) {
 	case *ast.IndexExpr:
 		c.compileExpr(ex.Array)
 		c.compileExpr(ex.Index)
-		c.chunk().Write(bytecode.OpArrayGet, 0)
+		c.chunk().Write(bytecode.OpArrayGet)
 	case *ast.NewArrayExpr:
 		c.compileExpr(ex.Length)
-		c.chunk().Write(bytecode.OpArrayNew, 0)
+		c.chunk().Write(bytecode.OpArrayNew)
 	default:
 		panic(fmt.Sprintf("unknown expr %T", ex))
 	}
@@ -339,9 +339,9 @@ func (c *Compiler) compileInt(l *ast.LiteralExpr) {
 	intVal, _ := strconv.Atoi(l.Lexeme)
 	v := bytecode.Value{Kind: bytecode.ValInt, I: int64(intVal)}
 
-	ch.Write(bytecode.OpConst, 0)
+	ch.Write(bytecode.OpConst)
 	idx := ch.AddConstant(v)
-	ch.WriteUint16(uint16(idx), 0)
+	ch.WriteUint16(uint16(idx))
 }
 
 func (c *Compiler) compileFloat(l *ast.LiteralExpr) {
@@ -349,18 +349,18 @@ func (c *Compiler) compileFloat(l *ast.LiteralExpr) {
 	floatVal, _ := strconv.ParseFloat(l.Lexeme, 32)
 	v := bytecode.Value{Kind: bytecode.ValFloat, F: floatVal}
 
-	ch.Write(bytecode.OpConst, 0)
+	ch.Write(bytecode.OpConst)
 	idx := ch.AddConstant(v)
-	ch.WriteUint16(uint16(idx), 0)
+	ch.WriteUint16(uint16(idx))
 }
 
 func (c *Compiler) compileString(l *ast.LiteralExpr) {
 	ch := c.chunk()
 	v := bytecode.Value{Kind: bytecode.ValString, S: l.Lexeme}
 
-	ch.Write(bytecode.OpConst, 0)
+	ch.Write(bytecode.OpConst)
 	idx := ch.AddConstant(v)
-	ch.WriteUint16(uint16(idx), 0)
+	ch.WriteUint16(uint16(idx))
 }
 
 func (c *Compiler) compileBool(l *ast.LiteralExpr) {
@@ -368,35 +368,35 @@ func (c *Compiler) compileBool(l *ast.LiteralExpr) {
 	boolV, _ := strconv.ParseBool(l.Lexeme)
 	v := bytecode.Value{Kind: bytecode.ValBool, B: boolV}
 
-	ch.Write(bytecode.OpConst, 0)
+	ch.Write(bytecode.OpConst)
 	idx := ch.AddConstant(v)
-	ch.WriteUint16(uint16(idx), 0)
+	ch.WriteUint16(uint16(idx))
 }
 
 func (c *Compiler) compileChar(l *ast.LiteralExpr) {
 	ch := c.chunk()
 	v := bytecode.Value{Kind: bytecode.ValChar, C: l.Lexeme[0]}
 
-	ch.Write(bytecode.OpConst, 0)
+	ch.Write(bytecode.OpConst)
 	idx := ch.AddConstant(v)
-	ch.WriteUint16(uint16(idx), 0)
+	ch.WriteUint16(uint16(idx))
 
 }
 
 func (c *Compiler) compileNull() {
 	ch := c.chunk()
 
-	ch.Write(bytecode.OpConst, 0)
+	ch.Write(bytecode.OpConst)
 	idx := ch.AddConstant(bytecode.Value{Kind: bytecode.ValNull})
-	ch.WriteUint16(uint16(idx), 0)
+	ch.WriteUint16(uint16(idx))
 }
 
 func (c *Compiler) compileIdent(e *ast.IdentExpr) {
 	ch := c.chunk()
 
 	if slot, ok := c.resolveLocal(e.Name); ok {
-		ch.Write(bytecode.OpLoadLocal, 0)
-		ch.WriteByte(byte(slot), 0)
+		ch.Write(bytecode.OpLoadLocal)
+		ch.WriteByte(byte(slot))
 		return
 	}
 
@@ -410,9 +410,9 @@ func (c *Compiler) compileUnary(e *ast.UnaryExpr) {
 
 	switch e.Op {
 	case token.TokenMinus:
-		ch.Write(bytecode.OpNeg, 0)
+		ch.Write(bytecode.OpNeg)
 	case token.TokenNot:
-		ch.Write(bytecode.OpNot, 0)
+		ch.Write(bytecode.OpNot)
 	default:
 		panic("unknown unary op")
 	}
@@ -427,11 +427,11 @@ func (c *Compiler) compileBinary(e *ast.BinaryExpr) {
 
 		c.compileExpr(e.Left)
 
-		ch.Write(bytecode.OpJumpIfFalse, 0)
+		ch.Write(bytecode.OpJumpIfFalse)
 		jumpToEnd := len(ch.Code)
-		ch.WriteUint16(0, 0)
+		ch.WriteUint16(0)
 
-		ch.Write(bytecode.OpPop, 0)
+		ch.Write(bytecode.OpPop)
 
 		c.compileExpr(e.Right)
 
@@ -443,18 +443,18 @@ func (c *Compiler) compileBinary(e *ast.BinaryExpr) {
 
 		c.compileExpr(e.Left)
 
-		ch.Write(bytecode.OpJumpIfFalse, 0)
+		ch.Write(bytecode.OpJumpIfFalse)
 		jumpToRight := len(ch.Code)
-		ch.WriteUint16(0, 0)
+		ch.WriteUint16(0)
 
-		ch.Write(bytecode.OpJump, 0)
+		ch.Write(bytecode.OpJump)
 		jumpAfterTrue := len(ch.Code)
-		ch.WriteUint16(0, 0)
+		ch.WriteUint16(0)
 
 		rightPos := len(ch.Code)
 		ch.PatchUint16(jumpToRight, uint16(rightPos))
 
-		ch.Write(bytecode.OpPop, 0)
+		ch.Write(bytecode.OpPop)
 
 		c.compileExpr(e.Right)
 
@@ -468,30 +468,30 @@ func (c *Compiler) compileBinary(e *ast.BinaryExpr) {
 
 		switch e.Op {
 		case token.TokenPlus:
-			ch.Write(bytecode.OpAdd, 0)
+			ch.Write(bytecode.OpAdd)
 		case token.TokenMinus:
-			ch.Write(bytecode.OpSub, 0)
+			ch.Write(bytecode.OpSub)
 		case token.TokenMultiply:
-			ch.Write(bytecode.OpMul, 0)
+			ch.Write(bytecode.OpMul)
 		case token.TokenDivide:
-			ch.Write(bytecode.OpDiv, 0)
+			ch.Write(bytecode.OpDiv)
 		case token.TokenModulo:
-			ch.Write(bytecode.OpMod, 0)
+			ch.Write(bytecode.OpMod)
 		case token.TokenPower:
-			ch.Write(bytecode.OpPow, 0)
+			ch.Write(bytecode.OpPow)
 
 		case token.TokenEqual:
-			ch.Write(bytecode.OpEq, 0)
+			ch.Write(bytecode.OpEq)
 		case token.TokenNotEqual:
-			ch.Write(bytecode.OpNe, 0)
+			ch.Write(bytecode.OpNe)
 		case token.TokenLess:
-			ch.Write(bytecode.OpLt, 0)
+			ch.Write(bytecode.OpLt)
 		case token.TokenLessEqual:
-			ch.Write(bytecode.OpLe, 0)
+			ch.Write(bytecode.OpLe)
 		case token.TokenGreater:
-			ch.Write(bytecode.OpGt, 0)
+			ch.Write(bytecode.OpGt)
 		case token.TokenGreaterEqual:
-			ch.Write(bytecode.OpGe, 0)
+			ch.Write(bytecode.OpGe)
 
 		default:
 			panic("unknown binary op")
@@ -517,13 +517,13 @@ func (c *Compiler) compileCall(e *ast.CallExpr) {
 		panic("unknown function: " + name)
 	}
 
-	ch.Write(bytecode.OpCall, 0)
+	ch.Write(bytecode.OpCall)
 
 	idx := ch.AddConstant(bytecode.Value{
 		Kind: bytecode.ValString,
 		S:    name,
 	})
-	ch.WriteUint16(uint16(idx), 0)
+	ch.WriteUint16(uint16(idx))
 }
 
 func (c *Compiler) compileFor(s *ast.ForStmt) {
@@ -542,11 +542,11 @@ func (c *Compiler) compileFor(s *ast.ForStmt) {
 	if hasCond {
 		c.compileExpr(s.Condition)
 
-		ch.Write(bytecode.OpJumpIfFalse, 0)
+		ch.Write(bytecode.OpJumpIfFalse)
 		exitJumpPos = len(ch.Code)
-		ch.WriteUint16(0, 0)
+		ch.WriteUint16(0)
 
-		ch.Write(bytecode.OpPop, 0)
+		ch.Write(bytecode.OpPop)
 	}
 
 	c.compileBlock(s.Body)
@@ -557,14 +557,14 @@ func (c *Compiler) compileFor(s *ast.ForStmt) {
 		c.compileStmt(s.Increment)
 	}
 
-	ch.Write(bytecode.OpJump, 0)
-	ch.WriteUint16(uint16(loopStart), 0)
+	ch.Write(bytecode.OpJump)
+	ch.WriteUint16(uint16(loopStart))
 
 	if hasCond {
 		exitLable := len(ch.Code)
 		ch.PatchUint16(exitJumpPos, uint16(exitLable))
 
-		ch.Write(bytecode.OpPop, 0)
+		ch.Write(bytecode.OpPop)
 
 		afterLoop := len(ch.Code)
 		c.endLoop(incrementTarget, afterLoop)
@@ -600,9 +600,9 @@ func (c *Compiler) compileBreak(_ *ast.BreakStmt) {
 		panic("break outside of loop")
 	}
 	ch := c.chunk()
-	ch.Write(bytecode.OpJump, 0)
+	ch.Write(bytecode.OpJump)
 	pos := len(ch.Code)
-	ch.WriteUint16(0, 0)
+	ch.WriteUint16(0)
 
 	i := len(c.breakStack) - 1
 	c.breakStack[i] = append(c.breakStack[i], pos)
@@ -613,9 +613,9 @@ func (c *Compiler) compileContinue(_ *ast.ContinueStmt) {
 		panic("continue outside of loop")
 	}
 	ch := c.chunk()
-	ch.Write(bytecode.OpJump, 0)
+	ch.Write(bytecode.OpJump)
 	pos := len(ch.Code)
-	ch.WriteUint16(0, 0)
+	ch.WriteUint16(0)
 
 	i := len(c.continueStack) - 1
 	c.continueStack[i] = append(c.continueStack[i], pos)
