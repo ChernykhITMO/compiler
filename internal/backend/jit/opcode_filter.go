@@ -14,19 +14,22 @@ func AnalyzeNumericBasicBlockForJit(fn *bytecode.FunctionInfo, headerIp int) (ta
 
 	ip := headerIp
 
-	readUint16 := func() uint16 {
+	readUint16 := func() (uint16, bool) {
 		if ip+1 >= len(code) {
-			return 0
+			return 0, false
 		}
 		hi := uint16(code[ip])
 		lo := uint16(code[ip+1])
 		ip += 2
-		return (hi << 8) | lo
+		return (hi << 8) | lo, true
 	}
-	readByte := func() byte {
+	readByte := func() (byte, bool) {
+		if ip == len(code) {
+			return 0, false
+		}
 		b := code[ip]
 		ip++
-		return b
+		return b, true
 	}
 
 	for {
@@ -40,7 +43,10 @@ func AnalyzeNumericBasicBlockForJit(fn *bytecode.FunctionInfo, headerIp int) (ta
 		switch op {
 		// разрешенные операции для jit, только int
 		case bytecode.OpConst:
-			idx := readUint16()
+			idx, ok := readUint16()
+			if !ok {
+				return 0, false
+			}
 			if int(idx) >= len(ch.Constants) {
 				return 0, false
 			}
@@ -49,7 +55,10 @@ func AnalyzeNumericBasicBlockForJit(fn *bytecode.FunctionInfo, headerIp int) (ta
 			}
 
 		case bytecode.OpLoadLocal, bytecode.OpStoreLocal:
-			_ = readByte()
+			_, ok := readByte()
+			if !ok {
+				return 0, false
+			}
 
 		case bytecode.OpAdd, bytecode.OpSub, bytecode.OpMul:
 			// ok
@@ -60,13 +69,19 @@ func AnalyzeNumericBasicBlockForJit(fn *bytecode.FunctionInfo, headerIp int) (ta
 		case bytecode.OpPop:
 			// ok
 
-		// Терминаторы = заканчивает блок
+		// Терминаторы - дают разрешение на переход к jit, ели не встретиилось неудовл команды
 		case bytecode.OpJump:
-			_ = readUint16()
+			_, ok := readUint16()
+			if !ok {
+				return 0, false
+			}
 			return ip, true
 
 		case bytecode.OpJumpIfFalse:
-			_ = readUint16()
+			_, ok := readUint16()
+			if !ok {
+				return 0, false
+			}
 			return ip, true
 
 		case bytecode.OpReturn:
