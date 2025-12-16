@@ -3,11 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
-	"math"
+	"time"
 
 	"github.com/ChernykhITMO/compiler/internal/backend"
-	"github.com/ChernykhITMO/compiler/internal/bytecode"
-	"github.com/ChernykhITMO/compiler/internal/frontend/ast"
 	"github.com/ChernykhITMO/compiler/internal/frontend/lexer"
 	"github.com/ChernykhITMO/compiler/internal/frontend/parser"
 	"github.com/ChernykhITMO/compiler/internal/frontend/semantics"
@@ -42,9 +40,11 @@ func getScenarioSource(s Scenario) string {
 	}
 }
 
-const currentScenario = ScenarioForBreakContinue
+const currentScenario = ScenarioSort
 
 func main() {
+	start := time.Now()
+
 	src := getScenarioSource(currentScenario)
 
 	// 1) лексер + парсер
@@ -81,54 +81,17 @@ func main() {
 	}
 
 	// 5) проверяем, что вернулось 5
-	if res.Kind != bytecode.ValInt {
-		log.Fatalf("expected float, got kind=%v", res.Kind)
-	}
-	if math.Abs(float64(res.I)) > 1e-9 {
-		log.Fatalf("wrong result: want 1, got %v", res.I)
-	}
-
+	//if res.Kind != bytecode.ValInt {
+	//	log.Fatalf("expected float, got kind=%v", res.Kind)
+	//}
+	//if math.Abs(float64(res.I)) > 1e-9 {
+	//	log.Fatalf("wrong result: want 1, got %v", res.I)
+	//}
+	//
 	fmt.Println("OK, test() returned", res.I)
-}
 
-func dumpFunction(fn *bytecode.FunctionInfo) {
-	ch := &fn.Chunk
-	fmt.Printf("  code bytes: %v\n", ch.Code)
-	fmt.Printf("  consts (%d):\n", len(ch.Constants))
-	for i, c := range ch.Constants {
-		fmt.Printf("    %d: %+v\n", i, c)
-	}
-}
-
-func CountStatements(prog *ast.Program) int {
-	total := 0
-	for _, fn := range prog.Functions {
-		total += countStmtBlock(fn.Body)
-	}
-	return total
-}
-
-func countStmtBlock(block *ast.BlockStmt) int {
-	if block == nil {
-		return 0
-	}
-	total := 0
-
-	for _, stmt := range block.Statements {
-		total++
-
-		switch s := stmt.(type) {
-
-		case *ast.IfStmt:
-			total += countStmtBlock(s.ThenBlock)
-			total += countStmtBlock(s.ElseBlock)
-
-		case *ast.WhileStmt:
-			total += countStmtBlock(s.Body)
-
-		}
-	}
-	return total
+	elapsed := time.Since(start)
+	fmt.Println("time run:", elapsed.Seconds())
 }
 
 const forBreakContinue = `

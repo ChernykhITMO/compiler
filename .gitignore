@@ -1,2 +1,5 @@
 ./idea
 *.xml
+
+test_instruction.s
+test.o

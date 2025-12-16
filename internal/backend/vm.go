@@ -3,7 +3,10 @@ package backend
 import (
 	"fmt"
 	"math"
+	"unsafe"
 
+	"github.com/ChernykhITMO/compiler/internal/backend/jit"
+	"github.com/ChernykhITMO/compiler/internal/backend/jit/infrastructure/arm"
 	"github.com/ChernykhITMO/compiler/internal/bytecode"
 )
 
@@ -11,14 +14,34 @@ type rootSet struct {
 	locals *[]bytecode.Value
 	stack  *[]bytecode.Value
 }
+
+type jitKey struct {
+	fn *bytecode.FunctionInfo
+	ip int
+}
+
 type VM struct {
 	mod   *bytecode.Module
 	heap  bytecode.Heap
 	roots []rootSet
+
+	jitBlocks     map[jitKey]*jit.BasicBlock
+	jitHotCounter map[jitKey]uint32
+
+	// Чтобы не пытаться компилить один и тот же блок бесконечно при “не компилится”.
+	jitTried map[jitKey]bool
+
+	jitThreshold uint32
 }
 
 func NewVM(mod *bytecode.Module) *VM {
-	return &VM{mod: mod}
+	return &VM{
+		mod:           mod,
+		jitBlocks:     make(map[jitKey]*jit.BasicBlock),
+		jitHotCounter: make(map[jitKey]uint32),
+		jitTried:      make(map[jitKey]bool),
+		jitThreshold:  400,
+	}
 }
 
 func (vm *VM) Call(name string, args []bytecode.Value) (bytecode.Value, error) {
@@ -39,7 +62,9 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 	locals := make([]bytecode.Value, fn.NumLocals)
 	copy(locals, args)
 
-	stack := make([]bytecode.Value, 0, 256)
+	const maxStackCapacity = 4096
+	stackBacking := make([]bytecode.Value, maxStackCapacity)
+	stack := stackBacking[:0]
 
 	vm.roots = append(vm.roots, rootSet{
 		locals: &locals,
@@ -68,12 +93,43 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 	}
 
 	push := func(v bytecode.Value) {
-		stack = append(stack, v)
+		if len(stack) >= len(stackBacking) {
+			panic("stack overflow")
+		}
+		stack = stack[:len(stack)+1]
+		stack[len(stack)-1] = v
 	}
 
 	for {
 		if ip >= len(ch.Code) {
 			return bytecode.Value{Kind: bytecode.ValNull}, nil
+		}
+
+		if jitBlocks := vm.jitBlocks[jitKey{fn: fn, ip: ip}]; jitBlocks != nil {
+			var ctx arm.ContextVM
+			if len(locals) > 0 {
+				ctx.LocalsBase = unsafe.Pointer(&locals[0])
+			}
+
+			ctx.StackBase = unsafe.Pointer(&stackBacking[0])
+			ctx.StackSize = uint32(len(stack))
+			ctx.DidReturn = 0
+			nextIP := arm.CallJitBlock(jitBlocks.EntryPoint, &ctx)
+			stack = stackBacking[:ctx.StackSize]
+
+			if ctx.DidReturn != 0 {
+				if len(stack) == 0 {
+					return bytecode.Value{Kind: bytecode.ValNull}, nil
+				}
+				return stack[len(stack)-1], nil
+			}
+
+			if int(nextIP) < 0 || int(nextIP) > len(ch.Code) {
+				return bytecode.Value{}, fmt.Errorf("jit: bad nextIP=%d", nextIP)
+			}
+			ip = int(nextIP)
+
+			continue
 		}
 
 		op := bytecode.OpCode(ch.Code[ip])
@@ -197,6 +253,26 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 			target := int(readUint16())
 			if target < 0 || target > len(ch.Code) {
 				return bytecode.Value{}, fmt.Errorf("jump: bad target %d", target)
+			}
+
+			if target < ip {
+				key := jitKey{fn: fn, ip: target}
+
+				if !vm.jitTried[key] {
+					vm.jitHotCounter[key]++
+
+					if vm.jitHotCounter[key] >= vm.jitThreshold {
+						vm.jitTried[key] = true
+
+						jitBlock, ok, err := jit.CompileBasicBlockJitArm(fn, target)
+						if err != nil {
+							return bytecode.Value{}, err
+						}
+						if ok && jitBlock != nil {
+							vm.jitBlocks[key] = jitBlock
+						}
+					}
+				}
 			}
 			ip = target
 
