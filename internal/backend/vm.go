@@ -27,11 +27,9 @@ type VM struct {
 
 	jitBlocks     map[jitKey]*jit.BasicBlock
 	jitHotCounter map[jitKey]uint32
-
-	// Чтобы не пытаться компилить один и тот же блок бесконечно при “не компилится”.
-	jitTried map[jitKey]bool
-
-	jitThreshold uint32
+	jitTried      map[jitKey]bool // если не компилится, то перестать это делать
+	jitThreshold  uint32
+	JitEnabled    bool
 }
 
 func NewVM(mod *bytecode.Module) *VM {
@@ -41,6 +39,7 @@ func NewVM(mod *bytecode.Module) *VM {
 		jitHotCounter: make(map[jitKey]uint32),
 		jitTried:      make(map[jitKey]bool),
 		jitThreshold:  400,
+		JitEnabled:    true,
 	}
 }
 
@@ -105,31 +104,33 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 			return bytecode.Value{Kind: bytecode.ValNull}, nil
 		}
 
-		if jitBlocks := vm.jitBlocks[jitKey{fn: fn, ip: ip}]; jitBlocks != nil {
-			var ctx arm.ContextVM
-			if len(locals) > 0 {
-				ctx.LocalsBase = unsafe.Pointer(&locals[0])
-			}
-
-			ctx.StackBase = unsafe.Pointer(&stackBacking[0])
-			ctx.StackSize = uint32(len(stack))
-			ctx.DidReturn = 0
-			nextIP := arm.CallJitBlock(jitBlocks.EntryPoint, &ctx)
-			stack = stackBacking[:ctx.StackSize]
-
-			if ctx.DidReturn != 0 {
-				if len(stack) == 0 {
-					return bytecode.Value{Kind: bytecode.ValNull}, nil
+		if vm.JitEnabled {
+			if jitBlocks := vm.jitBlocks[jitKey{fn: fn, ip: ip}]; jitBlocks != nil {
+				var ctx arm.ContextVM
+				if len(locals) > 0 {
+					ctx.LocalsBase = unsafe.Pointer(&locals[0])
 				}
-				return stack[len(stack)-1], nil
-			}
 
-			if int(nextIP) < 0 || int(nextIP) > len(ch.Code) {
-				return bytecode.Value{}, fmt.Errorf("jit: bad nextIP=%d", nextIP)
-			}
-			ip = int(nextIP)
+				ctx.StackBase = unsafe.Pointer(&stackBacking[0])
+				ctx.StackSize = uint32(len(stack))
+				ctx.DidReturn = 0
+				nextIP := arm.CallJitBlock(jitBlocks.EntryPoint, &ctx)
+				stack = stackBacking[:ctx.StackSize]
 
-			continue
+				if ctx.DidReturn != 0 {
+					if len(stack) == 0 {
+						return bytecode.Value{Kind: bytecode.ValNull}, nil
+					}
+					return stack[len(stack)-1], nil
+				}
+
+				if int(nextIP) < 0 || int(nextIP) > len(ch.Code) {
+					return bytecode.Value{}, fmt.Errorf("jit: bad nextIP=%d", nextIP)
+				}
+				ip = int(nextIP)
+
+				continue
+			}
 		}
 
 		op := bytecode.OpCode(ch.Code[ip])
@@ -255,7 +256,7 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 				return bytecode.Value{}, fmt.Errorf("jump: bad target %d", target)
 			}
 
-			if target < ip {
+			if vm.JitEnabled && target < ip {
 				key := jitKey{fn: fn, ip: target}
 
 				if !vm.jitTried[key] {
