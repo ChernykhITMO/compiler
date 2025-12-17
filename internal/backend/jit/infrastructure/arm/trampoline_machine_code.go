@@ -1,5 +1,3 @@
-//go:build darwin && arm64
-
 package arm
 
 func callJitEntry(addressCode uintptr, ctx *ContextVM) (ret uint32)

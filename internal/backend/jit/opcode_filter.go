@@ -60,38 +60,25 @@ func AnalyzeNumericBasicBlockForJit(fn *bytecode.FunctionInfo, headerIp int) (ta
 				return 0, false
 			}
 
-		case bytecode.OpAdd, bytecode.OpSub, bytecode.OpMul:
+		case bytecode.OpAdd, bytecode.OpSub, bytecode.OpMul,
+			bytecode.OpEq, bytecode.OpNe, bytecode.OpLt, bytecode.OpLe, bytecode.OpGt, bytecode.OpGe,
+			bytecode.OpPop:
 			// ok
 
-		case bytecode.OpEq, bytecode.OpNe, bytecode.OpLt, bytecode.OpLe, bytecode.OpGt, bytecode.OpGe:
-			// ok
-
-		case bytecode.OpPop:
-			// ok
-
-		// Терминаторы - дают разрешение на переход к jit, ели не встретиилось неудовл команды
-		case bytecode.OpJump:
+		// Терминаторы = разрешение на переход к jit, ели не встретиилось неудовл команды
+		case bytecode.OpJump, bytecode.OpJumpIfFalse, bytecode.OpCall:
 			_, ok := readUint16()
 			if !ok {
 				return 0, false
 			}
 			return ip, true
 
-		case bytecode.OpJumpIfFalse:
-			_, ok := readUint16()
-			if !ok {
-				return 0, false
-			}
+		case bytecode.OpReturn, bytecode.OpArrayNew, bytecode.OpArrayGet, bytecode.OpArraySet:
 			return ip, true
 
-		case bytecode.OpReturn:
-			return ip, true
-
-		// запрещенные операции для jit
-		case bytecode.OpCall, bytecode.OpArrayNew, bytecode.OpArrayGet, bytecode.OpArraySet,
-			bytecode.OpDiv, bytecode.OpMod, bytecode.OpPow, bytecode.OpNeg, bytecode.OpNot:
+		case bytecode.OpDiv, bytecode.OpMod, bytecode.OpPow, bytecode.OpNeg, bytecode.OpNot:
 			return 0, false
-
+			
 		default:
 			return 0, false
 		}

@@ -256,6 +256,30 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 			arm.EmitReturn(memory)                                   // RET
 			goto done
 
+		case bytecode.OpCall:
+			opStart := uint16(ip - 1)
+
+			_ = readUint16(&ip) // пропускаем operand у Call (idx), но сам call НЕ исполняем
+
+			arm.EmitMove16ToW32(memory, 10, 0)
+			arm.EmitStore32DataToBase(memory, 10, 0, offsetDidReturn) // ctx.DidReturn = 0
+			arm.EmitStore32DataToBase(memory, 3, 0, offsetStackSize)  // ctx.StackSize = W3
+
+			arm.EmitMove16ToW32(memory, 0, opStart) // W0 = nextIP -> на OpCall
+			arm.EmitReturn(memory)
+			goto done
+
+		case bytecode.OpArrayNew, bytecode.OpArrayGet, bytecode.OpArraySet:
+			opStart := uint16(ip - 1) // вернуть на эту инструкцию, чтобы VM её исполнила
+
+			arm.EmitMove16ToW32(memory, 10, 0)
+			arm.EmitStore32DataToBase(memory, 10, 0, offsetDidReturn)
+			arm.EmitStore32DataToBase(memory, 3, 0, offsetStackSize)
+
+			arm.EmitMove16ToW32(memory, 0, opStart) // W0 = nextIP -> на Array*
+			arm.EmitReturn(memory)
+			goto done
+
 		default:
 			_ = memory.FreeMemoryMmap()
 			return nil, false, nil
@@ -264,7 +288,7 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 	}
 
 done:
-	if err := memory.MakeReadExecute(); err != nil { // RW -> RX
+	if err := memory.MakeReadExecuteMprotect(); err != nil {
 		_ = memory.FreeMemoryMmap()
 		return nil, false, err
 	}

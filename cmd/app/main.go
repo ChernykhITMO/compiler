@@ -14,11 +14,10 @@ import (
 type Scenario string
 
 const (
-	ScenarioGC        Scenario = "gc"
-	ScenarioFactorial Scenario = "factorial"
-	ScenarioSort      Scenario = "sort"
-	ScenarioPrimes    Scenario = "primes"
-
+	ScenarioGC               Scenario = "gc"
+	ScenarioFactorial        Scenario = "factorial"
+	ScenarioSort             Scenario = "sort"
+	ScenarioPrimes           Scenario = "primes"
 	ScenarioForBreakContinue Scenario = "forBreakContinue"
 )
 
@@ -40,7 +39,7 @@ func getScenarioSource(s Scenario) string {
 	}
 }
 
-const currentScenario = ScenarioSort
+const currentScenario = ScenarioPrimes
 
 func main() {
 	start := time.Now()

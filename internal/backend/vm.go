@@ -17,7 +17,7 @@ type rootSet struct {
 
 type jitKey struct {
 	fn *bytecode.FunctionInfo
-	ip int
+	IP int
 }
 
 type VM struct {
@@ -105,19 +105,19 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 		}
 
 		if vm.JitEnabled {
-			if jitBlocks := vm.jitBlocks[jitKey{fn: fn, ip: ip}]; jitBlocks != nil {
-				var ctx arm.ContextVM
+			if jitBlocks := vm.jitBlocks[jitKey{fn: fn, IP: ip}]; jitBlocks != nil {
+				var contextVM arm.ContextVM
 				if len(locals) > 0 {
-					ctx.LocalsBase = unsafe.Pointer(&locals[0])
+					contextVM.LocalsBase = unsafe.Pointer(&locals[0])
 				}
 
-				ctx.StackBase = unsafe.Pointer(&stackBacking[0])
-				ctx.StackSize = uint32(len(stack))
-				ctx.DidReturn = 0
-				nextIP := arm.CallJitBlock(jitBlocks.EntryPoint, &ctx)
-				stack = stackBacking[:ctx.StackSize]
+				contextVM.StackBase = unsafe.Pointer(&stackBacking[0])
+				contextVM.StackSize = uint32(len(stack))
+				contextVM.DidReturn = 0
+				nextIP := arm.CallJitBlock(jitBlocks.EntryPoint, &contextVM)
 
-				if ctx.DidReturn != 0 {
+				stack = stackBacking[:contextVM.StackSize]
+				if contextVM.DidReturn != 0 {
 					if len(stack) == 0 {
 						return bytecode.Value{Kind: bytecode.ValNull}, nil
 					}
@@ -128,7 +128,6 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 					return bytecode.Value{}, fmt.Errorf("jit: bad nextIP=%d", nextIP)
 				}
 				ip = int(nextIP)
-
 				continue
 			}
 		}
@@ -257,7 +256,7 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 			}
 
 			if vm.JitEnabled && target < ip {
-				key := jitKey{fn: fn, ip: target}
+				key := jitKey{fn: fn, IP: target}
 
 				if !vm.jitTried[key] {
 					vm.jitHotCounter[key]++

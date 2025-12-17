@@ -39,9 +39,6 @@ func (mem *ExecuteMemory) FreeMemoryMmap() error {
 	return err
 }
 
-func (mem *ExecuteMemory) GetBuf() []byte {
-	return mem.buf
-}
 func (mem *ExecuteMemory) GetPtrBaseBuf() uintptr {
 	if len(mem.buf) == 0 {
 		return 0
@@ -68,7 +65,7 @@ func (mem *ExecuteMemory) WriteUint32JitInstruction(instr uint32) {
 	mem.usedByte += 4
 }
 
-func (mem *ExecuteMemory) MakeReadExecute() error {
+func (mem *ExecuteMemory) MakeReadExecuteMprotect() error {
 	return unix.Mprotect(mem.buf, unix.PROT_READ|unix.PROT_EXEC)
 }
 
