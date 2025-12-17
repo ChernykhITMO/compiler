@@ -1,8 +1,6 @@
 package backend
 
 import (
-	"fmt"
-
 	"github.com/ChernykhITMO/compiler/internal/bytecode"
 )
 
@@ -22,22 +20,12 @@ func (vm *VM) newObject(t bytecode.ObjectType) *bytecode.Object {
 	vm.heap.Head = obj
 	vm.heap.NumObjects++
 
-	fmt.Printf("[GC] newObject type=%v -> NumObjects=%d\n", t, vm.heap.NumObjects)
-
 	return obj
 }
 
 func (vm *VM) gc() {
-	before := vm.heap.NumObjects
-	fmt.Printf("[GC] start: NumObjects=%d, MaxObjects=%d\n",
-		before, vm.heap.MaxObjects)
-
 	vm.markRoots()
 	vm.sweep()
-
-	after := vm.heap.NumObjects
-	fmt.Printf("[GC] end:   NumObjects=%d, MaxObjects=%d (collected %d)\n",
-		after, vm.heap.MaxObjects, before-after)
 
 	if vm.heap.NumObjects < 8 {
 		vm.heap.MaxObjects = 8

@@ -30,7 +30,6 @@ type ObjectType byte
 
 const (
 	ObjArray ObjectType = iota
-	// потом можно добавить ObjString, ObjMap и т.д. (если будет желание)
 )
 
 type Object struct {
