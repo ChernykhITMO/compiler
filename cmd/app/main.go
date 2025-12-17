@@ -46,15 +46,15 @@ func main() {
 
 	src := getScenarioSource(currentScenario)
 
-	// 1) лексер + парсер
 	lexer := lexer.NewLexer(src)
 	tokens := lexer.Tokenize()
 
 	p := parser.NewParser(tokens)
 	prog := p.ParseProgram()
 
-	// 2) валидация (по желанию выведи ошибки)
 	validator := semantics.NewASTValidator()
+	checker := semantics.NewChecker()
+	checker.Check(prog)
 	errs := validator.Validate(prog)
 	if len(errs) > 0 {
 		for _, e := range errs {
@@ -63,18 +63,14 @@ func main() {
 		log.Fatal("validation failed")
 	}
 
-	// 3) компиляция
 	comp := backend.NewCompiler()
 	mod, err := comp.CompileProgram(prog)
 	if err != nil {
 		log.Fatalf("compile error: %v", err)
 	}
 
-	// 4) запуск VM и вызов test()
 	vm := backend.NewVM(mod)
-	vm.JitEnabled = true
 
-	// test() без аргументов
 	res, err := vm.Call("test", nil)
 	if err != nil {
 		log.Fatalf("vm error: %v", err)
