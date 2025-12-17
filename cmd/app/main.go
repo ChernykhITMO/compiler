@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/ChernykhITMO/compiler/internal/backend"
 	"github.com/ChernykhITMO/compiler/internal/frontend/lexer"
@@ -14,36 +13,28 @@ import (
 type Scenario string
 
 const (
-	ScenarioGC               Scenario = "gc"
-	ScenarioFactorial        Scenario = "factorial"
-	ScenarioSort             Scenario = "sort"
-	ScenarioPrimes           Scenario = "primes"
-	ScenarioForBreakContinue Scenario = "forBreakContinue"
+	ScenarioFactorial Scenario = "factorial"
+	ScenarioSort      Scenario = "sort"
+	ScenarioPrimes    Scenario = "primes"
 )
 
 func getScenarioSource(s Scenario) string {
 	switch s {
-	case ScenarioGC:
-		return srcGC
 	case ScenarioFactorial:
 		return srcFactorial
 	case ScenarioSort:
 		return srcSort
 	case ScenarioPrimes:
 		return srcPrimes
-	case ScenarioForBreakContinue:
-		return forBreakContinue
 	default:
 		log.Fatalf("unknown scenario %q", s)
 		return ""
 	}
 }
 
-const currentScenario = ScenarioPrimes
+const currentScenario = ScenarioSort
 
 func main() {
-	start := time.Now()
-
 	src := getScenarioSource(currentScenario)
 
 	lexer := lexer.NewLexer(src)
@@ -87,45 +78,7 @@ func main() {
 	}
 
 	fmt.Println("OK, test() returned", res.I)
-
-	elapsed := time.Since(start)
-	fmt.Println("time run:", elapsed.Seconds())
 }
-
-const forBreakContinue = `
-function test() int{
-	int a = 0
-	int b = 5
-	while (a<10){
-		a = a + 1
-		if a == 9{
-			continue
-		}
-	}
-	return a
-}
-
-function main() void{
-}
-`
-
-// Стресс-тест gc
-const srcGC = `
-function main() void {
-    int i = 0
-    while (i < 100000) {
-        int[] arr
-        arr = new int[1000]
-        arr[0] = i
-        i = i + 1
-    }
-}
-
-function test() int {
-    main()
-    return 0
-}
-`
 
 // факториал
 const srcFactorial = `
@@ -181,12 +134,14 @@ function test() int {
 
     bubbleSort(arr, n)
 
-    if (arr[0] == 1 && arr[n - 1] == n) {
-        return 1
-    }
-    else {
-        return 0
-    }
+    for (int i = 0; i < 10000; i = i + 1) {
+		if (arr[i] != i + 1) {
+			return 1
+		}
+		else {
+			return 0
+    	}
+	}
 }
 `
 

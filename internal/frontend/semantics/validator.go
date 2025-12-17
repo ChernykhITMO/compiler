@@ -148,8 +148,6 @@ func (v *ASTValidator) validateStatement(stmt ast.Stmt, context string) {
 			v.validateStatement(s.Increment, context)
 		}
 		v.validateBlock(s.Body, context)
-	case *ast.BreakStmt, *ast.ContinueStmt:
-		// позже допишу, пока нет идеи что проверять
 	}
 
 }
