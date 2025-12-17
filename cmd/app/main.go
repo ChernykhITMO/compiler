@@ -73,6 +73,7 @@ func main() {
 
 	// 4) запуск VM и вызов test()
 	vm := backend.NewVM(mod)
+	vm.JitEnabled = true
 
 	// test() без аргументов
 	res, err := vm.Call("test", nil)
@@ -80,14 +81,16 @@ func main() {
 		log.Fatalf("vm error: %v", err)
 	}
 
-	// 5) проверяем, что вернулось 5
-	//if res.Kind != bytecode.ValInt {
-	//	log.Fatalf("expected float, got kind=%v", res.Kind)
-	//}
-	//if math.Abs(float64(res.I)) > 1e-9 {
-	//	log.Fatalf("wrong result: want 1, got %v", res.I)
-	//}
-	//
+	switch currentScenario {
+	case ScenarioFactorial:
+		const want = 2432902008176640000
+		if res.I != want {
+			log.Fatalf("wrong result: want %d got %d", want, res.I)
+		} else {
+			fmt.Println("factorial success")
+		}
+	}
+
 	fmt.Println("OK, test() returned", res.I)
 
 	elapsed := time.Since(start)
