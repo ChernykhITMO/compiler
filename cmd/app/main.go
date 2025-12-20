@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/ChernykhITMO/compiler/internal/backend"
 	"github.com/ChernykhITMO/compiler/internal/frontend/lexer"
@@ -60,9 +61,13 @@ func main() {
 		log.Fatalf("compile error: %v", err)
 	}
 
-	vm := backend.NewVM(mod)
+	vm := backend.NewVM(mod, true)
 
+	startCall := time.Now()
 	res, err := vm.Call("test", nil)
+	endCall := time.Since(startCall)
+	fmt.Printf("time vm.Call = %v\n", endCall)
+
 	if err != nil {
 		log.Fatalf("vm error: %v", err)
 	}

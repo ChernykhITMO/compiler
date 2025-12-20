@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/ChernykhITMO/compiler/internal/backend/jit"
 	"github.com/ChernykhITMO/compiler/internal/bytecode"
 )
 
@@ -17,7 +18,13 @@ type VM struct {
 	roots []rootSet
 }
 
-func NewVM(mod *bytecode.Module) *VM {
+func NewVM(mod *bytecode.Module, isActivatedJit bool) *VM {
+	if isActivatedJit {
+		for _, fn := range mod.Functions {
+			jit.OptimizePeephole(fn)
+		}
+	}
+
 	return &VM{mod: mod}
 }
 
@@ -301,6 +308,36 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 			}
 
 			arrVal.Obj.Items[idx] = val
+
+		case bytecode.OpArraySwapJit:
+			idxVal := pop()
+			arrVal := pop()
+
+			if arrVal.Kind != bytecode.ValObject || arrVal.Obj == nil || arrVal.Obj.Type != bytecode.ObjArray {
+				return bytecode.Value{}, fmt.Errorf("array swap: value is not array")
+			}
+			if idxVal.Kind != bytecode.ValInt {
+				return bytecode.Value{}, fmt.Errorf("array swap: index must be int")
+			}
+
+			j := int(idxVal.I)
+			items := arrVal.Obj.Items
+
+			if j < 0 || j+1 >= len(items) {
+				return bytecode.Value{}, fmt.Errorf("array swap: index %d out of range", j)
+			}
+
+			a := items[j]
+			b := items[j+1]
+
+			if a.Kind != bytecode.ValInt || b.Kind != bytecode.ValInt {
+				return bytecode.Value{}, fmt.Errorf("array swap: non-int elements")
+			}
+
+			if a.I > b.I {
+				items[j] = b
+				items[j+1] = a
+			}
 
 		default:
 			return bytecode.Value{}, fmt.Errorf("unknown opcode %d", op)
