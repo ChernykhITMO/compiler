@@ -88,4 +88,6 @@ const (
 	OpArrayNew // выделить память под массив
 	OpArrayGet // получит значение по индексу
 	OpArraySet // присовить значение по индексу
+
+	OpArraySwapJit
 )
