@@ -10,7 +10,7 @@ const (
 )
 
 func EmitReturn(mem *ExecuteMemory) {
-	mem.WriteUint32JitInstruction(0xD65F03C0) // RET X30
+	mem.WriteUint32JitInstruction(0xD65F03C0) // RET
 }
 
 func EmitMove16ToX64(mem *ExecuteMemory, destinationX64 uint8, imm16 uint16) {

@@ -36,9 +36,9 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 		return nil, false, fmt.Errorf("Value size must be multiple of 8, got %d", valueSize)
 	}
 
-	offsetKind := int(unsafe.Offsetof(bytecodeVal.Kind))
-	offsetInt := int(unsafe.Offsetof(bytecodeVal.I))
-	offsetBool := int(unsafe.Offsetof(bytecodeVal.B))
+	offKind := int(unsafe.Offsetof(bytecodeVal.Kind))
+	offInt := int(unsafe.Offsetof(bytecodeVal.I))
+	offBool := int(unsafe.Offsetof(bytecodeVal.B))
 
 	memory, err := arm.AllocateMemoryMmap(4096)
 	if err != nil {
@@ -78,10 +78,10 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 		clearValueSlot(6)
 
 		arm.EmitMove16ToW32(memory, 10, uint16(bytecode.ValInt)) // W10 = ValInt
-		arm.EmitStore8DataToBase(memory, 10, 6, offsetKind)      // slot.Kind = ValInt
+		arm.EmitStore8DataToBase(memory, 10, 6, offKind)         // slot.Kind = ValInt
 
-		arm.EmitMove16ToX64(memory, 7, imm16)              // X7 = imm
-		arm.EmitStore64DataToBase(memory, 7, 6, offsetInt) // slot.I = imm
+		arm.EmitMove16ToX64(memory, 7, imm16)           // X7 = imm
+		arm.EmitStore64DataToBase(memory, 7, 6, offInt) // slot.I = imm
 
 		arm.EmitAdd32(memory, 3, 3, 1) // stackSize++
 	}
@@ -91,8 +91,8 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 		clearValueSlot(6)
 
 		arm.EmitMove16ToW32(memory, 11, uint16(bytecode.ValBool)) // W11 = ValBool
-		arm.EmitStore8DataToBase(memory, 11, 6, offsetKind)       // slot.Kind = ValBool
-		arm.EmitStore8DataToBase(memory, 10, 6, offsetBool)       // slot.B = W10 (0/1)
+		arm.EmitStore8DataToBase(memory, 11, 6, offKind)          // slot.Kind = ValBool
+		arm.EmitStore8DataToBase(memory, 10, 6, offBool)          // slot.B = W10 (0/1)
 
 		arm.EmitAdd32(memory, 3, 3, 1) // stackSize++
 	}
@@ -105,13 +105,13 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 	}
 
 	emitPop2LoadIntsIntoX7X8 := func() {
-		arm.EmitSub32(memory, 3, 3, 1)                      // stackSize--
-		computeAddress(2, 3, 6)                             // X6 = addr(b)
-		arm.EmitLoad64DataFromBase(memory, 7, 6, offsetInt) // X7 = b
+		arm.EmitSub32(memory, 3, 3, 1)                   // stackSize--
+		computeAddress(2, 3, 6)                          // X6 = addr(b)
+		arm.EmitLoad64DataFromBase(memory, 7, 6, offInt) // X7 = b
 
-		arm.EmitSub32(memory, 3, 3, 1)                      // stackSize--
-		computeAddress(2, 3, 6)                             // X6 = addr(a)
-		arm.EmitLoad64DataFromBase(memory, 8, 6, offsetInt) // X8 = a
+		arm.EmitSub32(memory, 3, 3, 1)                   // stackSize--
+		computeAddress(2, 3, 6)                          // X6 = addr(a)
+		arm.EmitLoad64DataFromBase(memory, 8, 6, offInt) // X8 = a
 	}
 
 	emitWriteIntResultToTopAndInc := func(resultX uint8) {
@@ -119,10 +119,10 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 		clearValueSlot(6)
 
 		arm.EmitMove16ToW32(memory, 10, uint16(bytecode.ValInt)) // W10 = ValInt
-		arm.EmitStore8DataToBase(memory, 10, 6, offsetKind)      // slot.Kind = ValInt
+		arm.EmitStore8DataToBase(memory, 10, 6, offKind)         // slot.Kind = ValInt
 
-		arm.EmitStore64DataToBase(memory, resultX, 6, offsetInt) // slot.I = resultX
-		arm.EmitAdd32(memory, 3, 3, 1)                           // stackSize++
+		arm.EmitStore64DataToBase(memory, resultX, 6, offInt) // slot.I = resultX
+		arm.EmitAdd32(memory, 3, 3, 1)                        // stackSize++
 	}
 
 	ip := headerIp
@@ -189,7 +189,7 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 		case bytecode.OpEq, bytecode.OpNe, bytecode.OpLt, bytecode.OpLe, bytecode.OpGt, bytecode.OpGe:
 			emitPop2LoadIntsIntoX7X8() // X7 = b, X8 = a
 
-			arm.EmitCompareRegisters64(memory, 8, 7) // (a ? b)
+			arm.EmitCompareRegisters64(memory, 8, 7) // выставляем флаги сравнения (a ? b)
 
 			branchTrue := arm.EmitConditionalJump(memory, mapCompareToCondition(op)) // if true -> переход на true блок
 			arm.EmitMove16ToW32(memory, 10, 0)                                       // W10 = 0 (false)
@@ -197,9 +197,11 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 
 			truePos := memory.GetUsedByte()    // позиция true-block в машинном коде
 			arm.EmitMove16ToW32(memory, 10, 1) // W10 = 1 (true)
+
 			endPos := memory.GetUsedByte()
 			arm.PatchConditional(memory, branchTrue, truePos, mapCompareToCondition(op))
 			arm.PatchUnconditional(memory, branchEnd, endPos)
+
 			pushBoolFromW10() // push bool(W10)
 
 		case bytecode.OpPop:
@@ -217,25 +219,25 @@ func CompileBasicBlockJitArm(fn *bytecode.FunctionInfo, headerIp int) (*BasicBlo
 			goto done
 
 		case bytecode.OpJumpIfFalse:
-			target := readUint16(&ip)      // переход если false
-			fallthroughValue := uint16(ip) // переход если true
+			target := readUint16(&ip)      // куда перейти если false
+			fallthroughValue := uint16(ip) // куда перейти если true
 
-			arm.EmitSub32(memory, 10, 3, 1) // W10 = W3 - 1
+			arm.EmitSub32(memory, 10, 3, 1) // W10 = stackSize--
 			computeAddress(2, 10, 6)        // X6 = addr(top-1)
 
-			arm.EmitLoad8DataFromBase(memory, 11, 6, offsetBool) // W11 = top.B (0/1)
+			arm.EmitLoad8DataFromBase(memory, 11, 6, offBool) // W11 = top.B (0/1)
 
 			// если W11 == 0 -> вернуть target, иначе вернуть fallthrough
 			arm.EmitCompareRegisters64(memory, 11, 31)
 			branchFalse := arm.EmitConditionalJump(memory, arm.ConditionEq) // EQ => false
 
-			arm.EmitMove16ToW32(memory, 10, 0)                        // true блок
+			arm.EmitMove16ToW32(memory, 10, 0)
 			arm.EmitStore32DataToBase(memory, 10, 0, offsetDidReturn) // ctx.DidReturn = 0
 			arm.EmitStore32DataToBase(memory, 3, 0, offsetStackSize)  // ctx.StackSize = W3
 			arm.EmitMove16ToW32(memory, 0, fallthroughValue)          // W0 = fallthrough
 			arm.EmitReturn(memory)                                    // RET
 
-			falsePos := memory.GetUsedByte() // false блок
+			falsePos := memory.GetUsedByte() // false-block
 			arm.EmitMove16ToW32(memory, 10, 0)
 			arm.EmitStore32DataToBase(memory, 10, 0, offsetDidReturn) // ctx.DidReturn = 0
 			arm.EmitStore32DataToBase(memory, 3, 0, offsetStackSize)  // ctx.StackSize = W3

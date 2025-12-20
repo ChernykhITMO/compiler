@@ -58,7 +58,7 @@ func writeUint32(buf []byte, pos int, instr uint32) {
 
 func (mem *ExecuteMemory) WriteUint32JitInstruction(instr uint32) {
 	if mem.usedByte+4 > len(mem.buf) {
-		panic("WriteUint32JitInstruction(): not enough free bytes")
+		panic("WriteUint32JitInstruction(): out of space bytes")
 	}
 
 	writeUint32(mem.buf, mem.usedByte, instr)
