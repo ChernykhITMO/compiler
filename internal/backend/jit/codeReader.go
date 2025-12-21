@@ -7,7 +7,7 @@ type CodeReader struct {
 	ip   int
 }
 
-func (r *CodeReader) NextInstruction() (Instruction, bool) {
+func (r *CodeReader) GetNextInstruction() (Instruction, bool) {
 	instr, ok := Decode(r.code, r.ip)
 	if !ok {
 		return Instruction{}, false
@@ -17,12 +17,12 @@ func (r *CodeReader) NextInstruction() (Instruction, bool) {
 }
 
 func (r *CodeReader) ExpectInstruction(opCode bytecode.OpCode) bool {
-	instr, ok := r.NextInstruction()
+	instr, ok := r.GetNextInstruction()
 	return ok && instr.OpCode == opCode
 }
 
 func (r *CodeReader) ExpectArgument(opCode bytecode.OpCode) (int, bool) {
-	instr, ok := r.NextInstruction()
+	instr, ok := r.GetNextInstruction()
 	if !ok || instr.OpCode != opCode {
 		return 0, false
 	}

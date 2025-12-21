@@ -20,7 +20,7 @@ func OptimizePeephole(fn *bytecode.FunctionInfo) {
 			break
 		}
 
-		if ok, newCode, oldSpanBytes := matchBubbleSortSwap(code, ip); ok {
+		if ok, newCode, oldSpanBytes := matchBytecodeSwap(code, ip); ok {
 			reps = append(reps, replacementCode{
 				oldStartIP: ip,
 				oldEndIP:   ip + oldSpanBytes,
@@ -37,7 +37,7 @@ func OptimizePeephole(fn *bytecode.FunctionInfo) {
 		return
 	}
 
-	// mapping old ip -> new ip
+	// map old ip -> new ip
 	oldToNewIPMap := make(map[int]int, 1024)
 	replaceIndex := 0
 	newIP := 0
@@ -60,7 +60,7 @@ func OptimizePeephole(fn *bytecode.FunctionInfo) {
 		ip += size
 	}
 
-	// собираем новый код и переписываем jump target
+	// сборка нового кода и изменение jump target
 	out := make([]byte, 0, newIP)
 	replaceIndex = 0
 	for ip := 0; ip < len(code); {
@@ -114,8 +114,7 @@ func OptimizePeephole(fn *bytecode.FunctionInfo) {
 	ch.Code = out
 }
 
-// просмотр байткода и проверка паттерна = условно регулярное выражение
-func matchBubbleSortSwap(code []byte, start int) (bool, []byte, int) {
+func matchBytecodeSwap(code []byte, start int) (bool, []byte, int) {
 	r := CodeReader{code: code, ip: start}
 
 	// arr[j]
@@ -206,7 +205,7 @@ func matchBubbleSortSwap(code []byte, start int) (bool, []byte, int) {
 		return false, nil, 0
 	}
 
-	// Проверка структуры if
+	// Проверка  if
 	if skipIP < 0 || skipIP >= len(code) || bytecode.OpCode(code[skipIP]) != bytecode.OpPop || endIP != skipIP+1 {
 		return false, nil, 0
 	}
