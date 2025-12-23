@@ -512,6 +512,17 @@ func (c *Compiler) compileCall(e *ast.CallExpr) {
 	}
 
 	name := id.Name
+
+	if name == "print" {
+		if len(e.Args) != 1 {
+			panic("print expects exactly 1 argument")
+		}
+		ch.Write(bytecode.OpPrint)
+		ch.Write(bytecode.OpConst)
+		idx := ch.AddConstant(bytecode.Value{Kind: bytecode.ValNull})
+		ch.WriteUint16(uint16(idx))
+		return
+	}
 	_, ok = c.mod.Functions[name]
 	if !ok {
 		panic("unknown function: " + name)

@@ -134,18 +134,15 @@ function test() int {
     int i = 0
     while (i < n) {
         arr[i] = n - i
+		print(arr[i])
         i = i + 1
     }
 
     bubbleSort(arr, n)
+	print("after sort")
 
     for (int i = 0; i < 10000; i = i + 1) {
-		if (arr[i] == i + 1) {
-			continue
-		}
-		else {
-			return 1
-    	}
+		print(arr[i])
 	}
 }
 `

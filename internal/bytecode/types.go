@@ -90,4 +90,6 @@ const (
 	OpArraySet // присовить значение по индексу
 
 	OpArraySwapJit
+
+	OpPrint
 )

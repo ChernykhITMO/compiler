@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/ChernykhITMO/compiler/internal/backend/jit"
 	"github.com/ChernykhITMO/compiler/internal/bytecode"
@@ -249,6 +250,9 @@ func (vm *VM) runFunction(fn *bytecode.FunctionInfo, args []bytecode.Value) (byt
 				return bytecode.Value{}, err
 			}
 			push(ret)
+		case bytecode.OpPrint:
+			v := pop()
+			fmt.Print(formatValue(v) + " ")
 
 		case bytecode.OpReturn:
 			if len(stack) == 0 {
@@ -493,5 +497,30 @@ func compareFloat(op bytecode.OpCode, a, b float64) (bool, error) {
 		return a >= b, nil
 	default:
 		return false, fmt.Errorf("unknown compare op %d", op)
+	}
+}
+
+func formatValue(v bytecode.Value) string {
+	switch v.Kind {
+	case bytecode.ValInt:
+		return strconv.FormatInt(v.I, 10)
+
+	case bytecode.ValFloat:
+		return strconv.FormatFloat(v.F, 'g', -1, 64)
+
+	case bytecode.ValBool:
+		return strconv.FormatBool(v.B)
+
+	case bytecode.ValChar:
+		return string(v.C) // или string(v.C), если C byte
+
+	case bytecode.ValString:
+		return v.S
+
+	case bytecode.ValNull:
+		return "null"
+
+	default:
+		return "<invalid>"
 	}
 }
