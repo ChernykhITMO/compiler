@@ -140,11 +140,11 @@ function test() int {
     bubbleSort(arr, n)
 
     for (int i = 0; i < 10000; i = i + 1) {
-		if (arr[i] != i + 1) {
-			return 1
+		if (arr[i] == i + 1) {
+			continue
 		}
 		else {
-			return 0
+			return 1
     	}
 	}
 }
