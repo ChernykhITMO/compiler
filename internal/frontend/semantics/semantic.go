@@ -11,6 +11,10 @@ const (
 	undeclaredVariable = "UndeclaredVariable"
 )
 
+var builtins = map[string]struct{}{
+	"print": {},
+}
+
 type SemanticError struct {
 	Type    string
 	Message string
@@ -121,7 +125,10 @@ func (c *Checker) checkExpression(expr ast.Expr) {
 
 	case *ast.CallExpr:
 		if ident, ok := e.Callee.(*ast.IdentExpr); ok {
-			if _, ok := c.functions[ident.Name]; !ok {
+			_, inFuncs := c.functions[ident.Name]
+			_, inBuiltins := builtins[ident.Name]
+
+			if !inFuncs && !inBuiltins {
 				c.addError("UndeclaredFunction",
 					fmt.Sprintf("Function '%s' is not declared", ident.Name))
 			}
