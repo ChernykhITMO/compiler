@@ -66,7 +66,7 @@ func main() {
 	startCall := time.Now()
 	res, err := vm.Call("test", nil)
 	endCall := time.Since(startCall)
-	fmt.Printf("time vm.Call = %v\n", endCall)
+	fmt.Printf("\ntime vm.Call = %v\n", endCall)
 
 	if err != nil {
 		log.Fatalf("vm error: %v", err)
@@ -134,7 +134,6 @@ function test() int {
     int i = 0
     while (i < n) {
         arr[i] = n - i
-		print(arr[i])
         i = i + 1
     }
 
